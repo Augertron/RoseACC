@@ -1,5 +1,5 @@
 
-include $(top_srcdir)/config/Makefile.for.ROSE.includes.and.libs
+include @rose_src_path@/config/Makefile.for.ROSE.includes.and.libs
 
 lib_LTLIBRARIES=libDLX-openacc.la
 
