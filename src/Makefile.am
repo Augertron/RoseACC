@@ -1,31 +1,24 @@
 
-include @rose_src_path@/config/Makefile.for.ROSE.includes.and.libs
-
 bin_PROGRAMS=roseacc
 
 roseacc_SOURCES= \
   roseacc.cpp
 roseacc_CXXFLAGS= -g -O2 \
-  -I$(top_srcdir)/src/frontend/DLX/include \
-  -I$(top_srcdir)/src/midend/MFB/include \
-  -I$(top_srcdir)/src/midend/MDCG/include \
-  -I$(top_srcdir)/src/backend/KLT/include \
   -I$(srcdir)/../include \
-  $(SQLITE3_CFLAGS) \
-  $(ROSE_INCLUDES)
+  -I@sqlite_path@/include \
+  -I@boost_path@/include \
+  -I@rose_path@/include
 roseacc_LDFLAGS= \
-  $(SQLITE3_LDFLAGS)
+  -L@sqlite_lib_path@ \
+  -L@boost_lib_path@ \
+  -L@rose_path@/lib
 roseacc_LDADD= \
-  $(top_builddir)/src/frontend/DLX/lib/core/libDLX-core.la \
-  $(top_builddir)/src/midend/MFB/lib/sage/libMFB-sage.la \
-  $(top_builddir)/src/midend/MDCG/lib/libMDCG.la \
-  $(top_builddir)/src/backend/KLT/lib/libKLT.la \
-  $(top_builddir)/src/backend/KLT/lib/core/libKLT-core.la \
   $(builddir)/../lib/dlx/openacc/libDLX-openacc.la \
   $(builddir)/../lib/klt/openacc/libKLT-openacc.la \
   $(builddir)/../lib/mdcg/openacc/libMDCG-openacc.la \
-  $(LIBS_WITH_RPATH) \
-  $(ROSE_LIBS)
+  -lrose -lDLX-core -lMFB-sage -lMDCG -lKLT -lKLT-core \
+  -lboost_filesystem -lboost_system \
+  -lsqlite3
 
 check-local: clean-local roseacc
 	./roseacc -I$(top_srcdir)/../libopenacc/include -c $(top_srcdir)/../tests/101/kernel-openacc.c
