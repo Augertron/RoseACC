@@ -66,6 +66,8 @@ void IterationMapper::computeValidShapes(
   LoopTrees<Annotation>::loop_t * loop,
   std::vector<Runtime::OpenACC::loop_shape_t *> & shapes
 ) const {
+  std::cerr << "Loop : " << loop << std::endl;
+
   if (!loop->isDistributed()) {
     shapes.push_back(new Runtime::OpenACC::loop_shape_t(0, 1, 1, 1, 1, 1, 1, false, false, false, false));
     return;
@@ -94,6 +96,7 @@ void IterationMapper::computeValidShapes(
   std::vector<unsigned>::const_iterator it_tiling_size;
   if (gang != 1 && worker != 1 && vector == 1) {
     // gang and vector: 3 tiles: tile_0, tile_1 and tile_2
+    std::cerr << "  gang & worker" << std::endl;
 
     shapes.push_back(new Runtime::OpenACC::loop_shape_t(1, gang, 1, worker, 1, 1, 1, false, false, false, false));
 /*
@@ -133,6 +136,7 @@ void IterationMapper::computeValidShapes(
   }
   else if (gang != 1 && worker == 1 && vector == 1) {
     // gang only      : 2 tiles: tile_0 and tile_1
+    std::cerr << "  gang" << std::endl;
 
     shapes.push_back(new Runtime::OpenACC::loop_shape_t(1, gang, 1, 1, 1, 1, 1, false, false, false, false));
 /*
@@ -159,6 +163,7 @@ void IterationMapper::computeValidShapes(
   }
   else if (gang == 1 && worker != 1 && vector == 1) {
     // vector only    : 2 tiles: tile_1 and tile_2
+    std::cerr << "  worker" << std::endl;
 
     shapes.push_back(new Runtime::OpenACC::loop_shape_t(1, 1, 1, worker, 1, 1, 1, false, false, false, false));
 /*
@@ -196,6 +201,9 @@ void IterationMapper::computeValidShapes(
     assert(false); /// \todo vector not supported yet
   }
   else assert(false); // Not reachable => !loop->isDistributed()
+
+  assert(!shapes.empty());
+
 }
 
 }

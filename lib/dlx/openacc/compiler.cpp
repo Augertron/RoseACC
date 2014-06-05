@@ -375,7 +375,7 @@ void extractLoopTrees(
           assert(directive->successor_list.size() == 1);
           Directives::directive_t<OpenACC::language_t> * child = directive->successor_list.begin()->second;
           assert(child->construct->kind == OpenACC::language_t::e_acc_construct_loop);
-          region_base = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_loop> *)directive->construct)->assoc_nodes.for_loop;
+          region_base = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_loop> *)child->construct)->assoc_nodes.for_loop;
         }
 
        std::set<SgVariableSymbol *> iterators;

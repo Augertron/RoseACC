@@ -365,6 +365,7 @@ size_t ocl_sizeof(SgType * type) {
   else if (isSgTypeFloat(type))        return sizeof(float);
   else if (isSgTypeDouble(type))       return sizeof(double);
   else if (isSgTypeUnsignedLong(type)) return sizeof(unsigned long);
+  else if (isSgTypedefType(type))      return ocl_sizeof(((SgTypedefType *)type)->get_base_type());
   else {
     std::cerr << "Unsupported type: " << type->class_name() << std::endl;
     assert(0);

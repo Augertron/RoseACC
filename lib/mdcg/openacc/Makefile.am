@@ -1,9 +1,11 @@
 
 lib_LTLIBRARIES=libMDCG-openacc.la
 
+CXXFLAGS=-g -O0
+
 libMDCG_openacc_la_SOURCES= \
   model.cpp
-libMDCG_openacc_la_CXXFLAGS= -g -O2 \
+libMDCG_openacc_la_CXXFLAGS= \
   -I$(srcdir)/../../../include \
   -I@rose_path@/include \
   -I@boost_path@/include \

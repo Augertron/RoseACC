@@ -483,7 +483,7 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   SgLocatedNode * directive_node,
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_seq> * clause
 ) {
-  return false;
+  return true;
 }
 
 template <>

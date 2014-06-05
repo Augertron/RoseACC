@@ -19,8 +19,8 @@ AC_PROG_CXX
 AC_ARG_WITH(rose,           [  --with-rose              ROSE source tree])
 if test ! -z "$with_rose"
 then
-	AC_MSG_NOTICE([Path to ROSE intall tree provided])
-        AC_SUBST(rose_path, "$with_rose")
+  AC_MSG_NOTICE([Path to ROSE intall tree provided])
+  AC_SUBST(rose_path, "$with_rose")
 else
   AC_MSG_ERROR([Need path to ROSE install tree for RoseACC.])
 fi
@@ -28,27 +28,38 @@ fi
 AC_ARG_WITH(libopenacc-src, [  --with-libopenacc-src    libOpenACC source tree])
 if test ! -z "$with_libopenacc_src"
 then
-	AC_MSG_NOTICE([Path to libOpenACC source tree provided])
-        AC_SUBST(libopenacc_src_path, "$with_libopenacc_src")
+  AC_MSG_NOTICE([Path to libOpenACC source tree provided])
+  AC_SUBST(libopenacc_src_path, "$with_libopenacc_src")
 else
   AC_MSG_ERROR([Need path to libOpenACC source tree for RoseACC.])
 fi
+
+AC_ARG_WITH(opencl,        [  --with-opencl            OpenCL path])
+
+if test ! -z "$with_opencl"
+then
+  AC_MSG_NOTICE([OpenCL path provided])
+  AC_SUBST(opencl_path, "$with_opencl")
+else
+  AC_MSG_ERROR([Missing OpenCL paths.])
+fi
+# TODO test OpenCL
 
 AC_ARG_WITH(sqlite,        [  --with-sqlite            SQLite path])
 AC_ARG_WITH(sqlite-libdir, [  --with-sqlite-libdir     SQLite libraries path])
 
 if test ! -z "$with_sqlite"
 then
-	AC_MSG_NOTICE([SQLite path provided])
-        AC_SUBST(sqlite_path, "$with_sqlite")
-        AC_SUBST(sqlite_lib_path, "$with_sqlite/lib")
+  AC_MSG_NOTICE([SQLite path provided])
+  AC_SUBST(sqlite_path, "$with_sqlite")
+  AC_SUBST(sqlite_lib_path, "$with_sqlite/lib")
 else
   AC_MSG_ERROR([Missing SQLite headers and/or libraries paths.])
 fi
 if test ! -z "$with_sqlite_libdir"
 then
-	AC_MSG_NOTICE([SQLite libraries path provided])
-        AC_SUBST(sqlite_lib_path, $with_sqlite_libdir)
+  AC_MSG_NOTICE([SQLite libraries path provided])
+  AC_SUBST(sqlite_lib_path, $with_sqlite_libdir)
 fi
 # TODO test SQLite
 

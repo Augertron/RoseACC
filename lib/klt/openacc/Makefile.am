@@ -1,6 +1,8 @@
 
 lib_LTLIBRARIES=libKLT-openacc.la
 
+CXXFLAGS=-g -O0
+
 libKLT_openacc_la_SOURCES= \
   dlx-openacc.cpp \
   runtime-openacc.cpp \
@@ -8,7 +10,7 @@ libKLT_openacc_la_SOURCES= \
   klt-openacc.cpp \
   iteration-mapper.cpp \
   code-generation.cpp
-libKLT_openacc_la_CXXFLAGS= -g -O2 \
+libKLT_openacc_la_CXXFLAGS= \
   -I$(srcdir)/../../../include \
   -I@sqlite_path@/include \
   -I@rose_path@/include \
