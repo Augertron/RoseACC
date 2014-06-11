@@ -13,6 +13,19 @@ bool add_debug_flag = true;
 const char * debug_flag = DEBUG_FLAG;
 #endif
 
+SgExpression * TileDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  switch (field_id) {
+    default:
+      assert(false);
+  }
+}
+
 SgExpression * LoopDesc::createFieldInitializer(
   const MDCG::CodeGenerator & codegen,
   MDCG::Model::field_t element,
@@ -20,27 +33,11 @@ SgExpression * LoopDesc::createFieldInitializer(
   const input_t & input,
   unsigned file_id
 ) {
-
   switch (field_id) {
-    case 0:
-      /// /todo unsigned long tiles[7];
-      return SageBuilder::buildAggregateInitializer(
-               SageBuilder::buildExprListExp(
-                 SageBuilder::buildLongIntVal(input.tile_0),
-                 SageBuilder::buildLongIntVal(input.gang),
-                 SageBuilder::buildLongIntVal(input.tile_1),
-                 SageBuilder::buildLongIntVal(input.worker),
-                 SageBuilder::buildLongIntVal(input.tile_2),
-                 SageBuilder::buildLongIntVal(input.vector),
-                 SageBuilder::buildLongIntVal(input.tile_3)
-               )
-             );
     default:
       assert(false);
   }
 }
-
-size_t s_version_id = 0;
 
 SgExpression * KernelVersion::createFieldInitializer(
   const MDCG::CodeGenerator & codegen,
@@ -50,6 +47,7 @@ SgExpression * KernelVersion::createFieldInitializer(
   unsigned file_id
 ) {
   switch (field_id) {
+/*
     case 0:
       return SageBuilder::buildIntVal(s_version_id++);
     case 1:
@@ -86,6 +84,7 @@ SgExpression * KernelVersion::createFieldInitializer(
     case 6:
       /// acc_device_t device_affinity;
       return SageBuilder::buildIntVal(0); /// \todo use 'acc_device_any'
+*/
     default:
       assert(false);
   }
@@ -132,6 +131,7 @@ SgExpression * KernelDesc::createFieldInitializer(
     names_suffix << "_" << input;
 
   switch (field_id) {
+/*
     case 0:
       /// unsigned id;
       return SageBuilder::buildIntVal(input->id);
@@ -191,6 +191,33 @@ SgExpression * KernelDesc::createFieldInitializer(
       /// \todo size_t * version_by_devices; 
       return SageBuilder::buildIntVal(0);
     }
+*/
+    default:
+      assert(false);
+  }
+}
+
+SgExpression * KernelWithDepsDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  switch (field_id) {
+    default:
+      assert(false);
+  }
+}
+
+SgExpression * KernelGroupDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  switch (field_id) {
     default:
       assert(false);
   }
@@ -207,9 +234,7 @@ SgExpression * RegionDesc::createFieldInitializer(
   const std::list<Kernel *> & kernels = *(input.kernel_lists.begin());
 
   std::ostringstream decl_name;
-    decl_name << "kernels_" << input.id;
-  std::ostringstream decl_prefix;
-    decl_prefix << "kernel_desc_" << input.id;
+    decl_name << "kernel_groups_" << input.id;
 
   switch (field_id) {
     case 0:
@@ -246,39 +271,45 @@ SgExpression * RegionDesc::createFieldInitializer(
       else
         return SageBuilder::buildIntVal(0);
     case 4:
-      /// size_t num_kernels;
-      return SageBuilder::buildIntVal(kernels.size());
+      /// size_t num_params;
+      return SageBuilder::buildIntVal(0);
     case 5:
+      ///  size_t * size_params;
+    case 6:
+      /// size_t num_scalars;
+    case 7:
+      /// size_t * size_scalars;
+    case 8:
+      /// size_t num_datas;
+    case 9:
+      /// size_t num_loops;
+    case 10:
+      /// size_t num_kernel_groups;
+    case 11:
     {
-      /// acc_kernel_desc_t * kernels;
       MDCG::Model::type_t type = element->node->type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
-      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_typedef_type);
-      type = type->node->base_type;
-      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
-      type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createPointerArrayPointer<KernelDesc>(
+      return codegen.createArrayPointer<KernelGroupDesc>(
                type->node->base_class,
-               kernels.size(),
-               kernels.begin(),
-               kernels.end(),
+               input.kernel_lists.size(),
+               input.kernel_lists.begin(),
+               input.kernel_lists.end(),
                file_id,
-               decl_name.str(),
-               decl_prefix.str()
+               decl_name.str()
              );
     }
-    case 6:
+    case 12:
       /// \todo size_t num_devices;
       return SageBuilder::buildIntVal(1);
-    case 7:
+    case 13:
       /// \todo struct { acc_device_t kind; size_t num; } * devices;
       return SageBuilder::buildIntVal(0); // NULL
-    case 8:
+    case 14:
       /// \todo size_t num_distributed_datas;
       return SageBuilder::buildIntVal(0);
-    case 9:
+    case 15:
       /// \todo struct acc_data_distribution_t_ * data_distributions;
       return SageBuilder::buildIntVal(0); // NULL
     default:
@@ -334,12 +365,12 @@ SgExpression * CompilerData::createFieldInitializer(
 
 void LoopDesc::storeToDB(sqlite3 * db_file, unsigned region_id, unsigned kernel_id, unsigned version_id, unsigned loop_id, const input_t & input) {
   char * err_msg;
-  char * query = (char *)malloc(200 * sizeof(char));
+  char * query = (char *)malloc(200 * sizeof(char));/*
   sprintf(query, "INSERT INTO Loops VALUES ( '%u', '%u', '%u' , '%u' , '%lu' , '%lu' , '%lu' , '%lu' , '%lu' , '%lu' , '%lu' , '%d' , '%d' , '%d' , '%d' );",
                  region_id, kernel_id, version_id, loop_id,
                  input.tile_0, input.gang, input.tile_1, input.worker, input.tile_2, input.vector, input.tile_3,
                  input.unroll_tile_0, input.unroll_tile_1, input.unroll_tile_2, input.unroll_tile_3
-         );
+         );*/
   int status = sqlite3_exec (db_file, query, NULL, NULL, &err_msg);
   assert (status == SQLITE_OK);
   free(query);

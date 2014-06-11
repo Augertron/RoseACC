@@ -10,6 +10,22 @@ namespace MDCG {
 
 namespace OpenACC {
 
+struct TileDesc {
+  struct input_t {
+    /// \todo
+  };
+
+  static SgExpression * createFieldInitializer(
+    const MDCG::CodeGenerator & codegen,
+    MDCG::Model::field_t element,
+    unsigned field_id,
+    const input_t & input,
+    unsigned file_id
+  );
+
+  static void storeToDB(sqlite3 * db_file, const input_t & input);
+};
+
 struct LoopDesc {
   typedef Runtime::a_loop input_t;
 
@@ -59,10 +75,39 @@ struct KernelDesc {
   static void storeToDB(sqlite3 * db_file, unsigned region_id, unsigned kernel_id, const input_t & input);
 };
 
+struct KernelWithDepsDesc {
+  typedef Kernel * input_t;
+
+  static SgExpression * createFieldInitializer(
+    const MDCG::CodeGenerator & codegen,
+    MDCG::Model::field_t element,
+    unsigned field_id,
+    const input_t & input,
+    unsigned file_id
+  );
+
+  static void storeToDB(sqlite3 * db_file, const input_t & input);
+};
+
+struct KernelGroupDesc {
+  typedef std::list<Kernel *> input_t;
+
+  static SgExpression * createFieldInitializer(
+    const MDCG::CodeGenerator & codegen,
+    MDCG::Model::field_t element,
+    unsigned field_id,
+    const input_t & input,
+    unsigned file_id
+  );
+
+  static void storeToDB(sqlite3 * db_file, const input_t & input);
+};
+
 struct RegionDesc {
   struct input_t {
     unsigned id;
     std::string file;
+    LoopTrees * loop_tree;
     std::set<std::list<Kernel *> > kernel_lists;
   };
 

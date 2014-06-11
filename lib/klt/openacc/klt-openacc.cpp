@@ -5,7 +5,7 @@
 #include "KLT/Core/generator.hpp"
 #include "KLT/Core/kernel.hpp"
 #include "KLT/Core/data.hpp"
-#include "KLT/Core/iteration-mapper.hpp"
+#include "KLT/Core/loop-tiler.hpp"
 #include "KLT/Core/mfb-klt.hpp"
 
 #include "KLT/OpenACC/dlx-openacc.hpp"

@@ -11,7 +11,7 @@
 #include "DLX/OpenACC/compiler.hpp"
 
 #include "KLT/Core/loop-trees.hpp"
-#include "KLT/OpenACC/iteration-mapper.hpp"
+#include "KLT/Core/loop-tiler.hpp"
 
 namespace DLX {
 
@@ -31,7 +31,7 @@ compiler_modules_t::compiler_modules_t(
   generator(driver, ocl_kernels_file_),
   cg_config(
     new KLT::LoopMapper<Annotation, Language, Runtime>(),
-    new KLT::OpenACC::IterationMapper(),
+    new KLT::LoopTiler<Annotation, Language, Runtime>(),
     new KLT::DataFlow<Annotation, Language, Runtime>()
   ),
   libopenacc_model(0),
@@ -464,15 +464,16 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
     MDCG::OpenACC::RegionDesc::input_t input_region;
       input_region.id = region_cnt++;
       input_region.file = compiler_modules.ocl_kernels_file;
+      input_region.loop_tree = it_region->second;
 
     compiler_modules.generator.generate(*(it_region->second), input_region.kernel_lists, compiler_modules.cg_config);
 
     compiler_modules.comp_data.regions.push_back(input_region);
   }
 
-  compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(compiler_modules.region_desc_class, compiler_modules.comp_data, compiler_modules.host_data_file_id, "compiler_data");
+//  compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(compiler_modules.region_desc_class, compiler_modules.comp_data, compiler_modules.host_data_file_id, "compiler_data");
 
-  MDCG::OpenACC::CompilerData::storeToDB(compiler_modules.versions_db_file, compiler_modules.comp_data);
+//  MDCG::OpenACC::CompilerData::storeToDB(compiler_modules.versions_db_file, compiler_modules.comp_data);
 
   return true;
 }

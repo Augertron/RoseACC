@@ -15,43 +15,34 @@ namespace Runtime {
 
 class OpenACC {
   public:
-    struct loop_shape_t {
-      loop_shape_t(long, long, long, long, long, long, long, bool, bool, bool, bool);
+    enum tile_kind_e {
+      e_static_tile = 0,
+      e_dynamic_tile = 1,
+      e_gang_tile,
+      e_worker_tile,
+      e_vector_tile
+    };
 
-      long tile_0;
-      long gang;
-      long tile_1;
-      long worker;
-      long tile_2;
-      long vector;
-      long tile_3;
+    struct tile_desc_t {
+      size_t id; // ID of the tile in the kernel
 
-      bool unroll_tile_0;
-      bool unroll_tile_1;
-      bool unroll_tile_2;
-      bool unroll_tile_3;
+      enum tile_kind_e kind;
+      union {
+        size_t length;
+        size_t level;
+      } param;
 
-      SgVariableSymbol * iterators[7];
+      SgVariableSymbol * iterator_sym;
     };
 
     struct a_loop {
-      unsigned id;
+      size_t id; // id of the loop in the kernel
 
       SgExpression * lb;
       SgExpression * ub;
+      SgExpression * stride;
 
-      long tile_0;
-      long gang;
-      long tile_1;
-      long worker;
-      long tile_2;
-      long vector;
-      long tile_3;
-
-      bool unroll_tile_0;
-      bool unroll_tile_1;
-      bool unroll_tile_2;
-      bool unroll_tile_3;
+      std::vector<tile_desc_t> tiles;
     };
 
     enum exec_mode_e {
@@ -72,33 +63,12 @@ class OpenACC {
     struct runtime_device_function_symbols_t {
       SgFunctionSymbol * gang_iter_symbol;
       SgFunctionSymbol * worker_iter_symbol;
+      SgFunctionSymbol * loop_lower_symbol;
+      SgFunctionSymbol * loop_upper_symbol;
+      SgFunctionSymbol * tile_length_symbol;
+      SgFunctionSymbol * tile_stride_symbol;
     };
     static runtime_device_function_symbols_t runtime_device_function_symbols;
-
-    struct runtime_context_symbols_t {
-      SgVariableSymbol * num_gang_symbol;
-      SgVariableSymbol * num_worker_symbol;
-      SgVariableSymbol * vector_length_symbol;
-      SgVariableSymbol * num_loop_symbol;
-      SgVariableSymbol * loops_symbol;
-    };
-    static runtime_context_symbols_t runtime_context_symbols;
-
-    struct runtime_kernel_loop_symbols_t {
-      SgVariableSymbol * original_symbol;
-      SgVariableSymbol * tiles_symbol;
-      SgVariableSymbol * tiles_stride_symbol;
-      SgVariableSymbol * tiles_length_symbol;
-    };
-    static runtime_kernel_loop_symbols_t runtime_kernel_loop_symbols;
-
-    struct runtime_loop_desc_symbols_t {
-      SgVariableSymbol * lower_symbol;
-      SgVariableSymbol * upper_symbol;
-      SgVariableSymbol * stride_symbol;
-      SgVariableSymbol * nbr_it_symbol;
-    };
-    static runtime_loop_desc_symbols_t runtime_loop_desc_symbols;
 
     static void loadAPI(MFB::Driver<MFB::Sage> & mfb_driver, std::string inc_path);
 };

@@ -5,7 +5,7 @@
 #include "KLT/Core/generator.hpp"
 #include "KLT/Core/kernel.hpp"
 #include "KLT/Core/data.hpp"
-#include "KLT/Core/iteration-mapper.hpp"
+#include "KLT/Core/loop-tiler.hpp"
 #include "KLT/Core/mfb-klt.hpp"
 
 #include "KLT/OpenACC/dlx-openacc.hpp"
@@ -27,7 +27,7 @@ KLT<Kernel_OpenCL_OpenACC>::object_desc_t::object_desc_t(
   id(id_),
   kernel(kernel_),
   file_id(file_id_),
-  shapes()
+  tiling()
 {}
 
 SgVariableSymbol * getExistingSymbolOrBuildDecl(
@@ -65,8 +65,8 @@ SgBasicBlock * createLocalDeclarations<
   >::arguments_t & arguments,
   const std::map<
     ::KLT::LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *,
-    ::KLT::Runtime::OpenACC::loop_shape_t *
-  > & loop_shapes
+    ::KLT::LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, ::KLT::Language::OpenCL, ::KLT::Runtime::OpenACC>::loop_tiling_t *
+  > & loop_tiling
 ) {
   std::list<SgVariableSymbol *>::const_iterator it_var_sym;
   std::list< ::KLT::Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *>::const_iterator it_data;
@@ -77,8 +77,8 @@ SgBasicBlock * createLocalDeclarations<
 
   std::map<
     ::KLT::LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *,
-    ::KLT::Runtime::OpenACC::loop_shape_t *
-  >::const_iterator it_loop_shape;
+    ::KLT::LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, ::KLT::Language::OpenCL, ::KLT::Runtime::OpenACC>::loop_tiling_t *
+  >::const_iterator it_loop_tiling;
   
   // * Definition *
 
@@ -126,70 +126,30 @@ SgBasicBlock * createLocalDeclarations<
 
   // * Create iterator *
 
-  for (it_loop_shape = loop_shapes.begin(); it_loop_shape != loop_shapes.end(); it_loop_shape++) {
-    ::KLT::LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t * loop = it_loop_shape->first;
-    ::KLT::Runtime::OpenACC::loop_shape_t * shape = it_loop_shape->second;
+  for (it_loop_tiling = loop_tiling.begin(); it_loop_tiling != loop_tiling.end(); it_loop_tiling++) {
+    ::KLT::LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t * loop = it_loop_tiling->first;
+    ::KLT::LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, ::KLT::Language::OpenCL, ::KLT::Runtime::OpenACC>::loop_tiling_t * tiling = it_loop_tiling->second;
 
     SgVariableSymbol * iter_sym = loop->iterator;
     std::string iter_name = iter_sym->get_name().getString();
     SgType * iter_type = iter_sym->get_type();
 
-    if (!loop->isDistributed()) {
-      SgVariableSymbol * local_sym = getExistingSymbolOrBuildDecl("local_it_" + iter_name, iter_type, kernel_body);
-      local_symbol_maps.iterators.insert(std::pair<SgVariableSymbol *, SgVariableSymbol *>(iter_sym, local_sym));
+    SgVariableSymbol * local_sym = NULL;
+    if (tiling->tiles.empty()) {
+      local_sym = getExistingSymbolOrBuildDecl("local_it_" + iter_name, iter_type, kernel_body);
     }
     else {
-      std::cerr << "Create it decl for " << iter_name << " (dist)" << std::endl;
-
-      SgVariableSymbol * local_sym = NULL;
-
-      if (shape->tile_0 != 1) {
-        std::string name = "local_it_" + iter_name + "_tile_0";
-        local_sym = getExistingSymbolOrBuildDecl(name, iter_type, kernel_body);
-        shape->iterators[0] = local_sym;
+      size_t tile_cnt = 0;
+      std::vector< ::KLT::Runtime::OpenACC::tile_desc_t>::iterator it_tile;
+      for (it_tile = tiling->tiles.begin(); it_tile != tiling->tiles.end(); it_tile++) {
+        std::ostringstream oss;
+        oss << "local_it_" << iter_name << "_tile_" << tile_cnt++;
+        local_sym = getExistingSymbolOrBuildDecl(oss.str(), iter_type, kernel_body);
+        it_tile->iterator_sym = local_sym;
       }
-      if (shape->gang != 1) {
-        std::string name = "local_it_" + iter_name + "_gang";
-        local_sym = getExistingSymbolOrBuildDecl(name, iter_type, kernel_body);
-        shape->iterators[1] = local_sym;
-      }
-      if (shape->tile_1 != 1) {
-        std::string name = "local_it_" + iter_name + "_tile_1";
-        local_sym = getExistingSymbolOrBuildDecl(name, iter_type, kernel_body);
-        shape->iterators[2] = local_sym;
-      }
-      if (shape->worker != 1) {
-        std::string name = "local_it_" + iter_name + "_worker";
-        local_sym = getExistingSymbolOrBuildDecl(name, iter_type, kernel_body);
-        shape->iterators[3] = local_sym;
-      }
-      if (shape->tile_2 != 1) {
-        std::string name = "local_it_" + iter_name + "_tile_2";
-        local_sym = getExistingSymbolOrBuildDecl(name, iter_type, kernel_body);
-        shape->iterators[4] = local_sym;
-      }
-      if (shape->vector == 0)
-        assert(false); // Vector cannot have a dynamic size
-      else if (shape->vector > 1) {
-
-        assert(false); /// \todo no iterator with static vector length > 1, as vector expressions imply it
-
-        std::string name = "local_it_" + iter_name + "_vector";
-        local_sym = getExistingSymbolOrBuildDecl(name, iter_type, kernel_body);
-        shape->iterators[5] = local_sym;
-      }
-
-      if (shape->tile_3 != 1) {
-        std::string name = "local_it_" + iter_name + "_tile_3";
-        local_sym = getExistingSymbolOrBuildDecl(name, iter_type, kernel_body);
-        shape->iterators[6] = local_sym;
-      }
-
       assert(local_sym != NULL);
-
-      local_symbol_maps.iterators.insert(std::pair<SgVariableSymbol *, SgVariableSymbol *>(iter_sym, local_sym));
-
     }
+    local_symbol_maps.iterators.insert(std::pair<SgVariableSymbol *, SgVariableSymbol *>(iter_sym, local_sym));
   }
 
   SgVariableSymbol * context_sym = kernel_defn->lookup_variable_symbol("context");

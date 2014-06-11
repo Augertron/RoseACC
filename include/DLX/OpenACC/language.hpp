@@ -84,6 +84,7 @@ struct language_t {
     e_acc_clause_device_resident,    //!< 
     e_acc_clause_collapse,           //!< 
     e_acc_clause_auto,               //!< 
+    e_acc_clause_tile,               //!< 
     e_acc_clause_gang,               //!< 
     e_acc_clause_worker,             //!< 
     e_acc_clause_vector,             //!< 

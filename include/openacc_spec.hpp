@@ -4,7 +4,7 @@
 
 #include "KLT/Core/loop-trees.hpp"
 #include "KLT/Core/data.hpp"
-#include "KLT/Core/iteration-mapper.hpp"
+#include "KLT/Core/loop-tiler.hpp"
 #include "KLT/Core/loop-mapper.hpp"
 #include "KLT/Core/data-flow.hpp"
 #include "KLT/Core/cg-config.hpp"

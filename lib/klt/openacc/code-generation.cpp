@@ -5,7 +5,7 @@
 #include "KLT/Core/generator.hpp"
 #include "KLT/Core/kernel.hpp"
 #include "KLT/Core/data.hpp"
-#include "KLT/Core/iteration-mapper.hpp"
+#include "KLT/Core/loop-tiler.hpp"
 #include "KLT/Core/mfb-klt.hpp"
 
 #include "KLT/OpenACC/language-opencl.hpp"
@@ -288,91 +288,6 @@ SgExpression * translateConstExpression(
   return result;
 }
 
-std::pair<SgStatement *, std::vector<SgScopeStatement *> > makeTile(
-  SgVariableSymbol * tile_iterator,
-  SgExpression * base,
-  unsigned tile_id,
-  SgExpression * runtime_loop_desc,
-  long tile_length,
-  bool unrolled,
-  const Kernel<
-    DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC
-  >::local_symbol_maps_t & local_symbol_maps
-) {
-  if (unrolled) {
-    assert(tile_length > 1);
-    SgBasicBlock * result_bb = SageBuilder::buildBasicBlock();
-    std::vector<SgScopeStatement *> result_scopes;
-
-    SgExprStatement * init_stmt = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
-                                    SageBuilder::buildVarRefExp(tile_iterator), base
-                                   ));
-    result_bb->append_statement(init_stmt);
-    for (unsigned i = 0; i < tile_length; i++) {
-      // Build an empty basic block where the iteration will be performed
-      SgBasicBlock * bb = SageBuilder::buildBasicBlock();
-      result_bb->append_statement(bb);
-      result_scopes.push_back(bb);
-
-      // Increment the iterator
-      SgExprStatement * inc_stmt = SageBuilder::buildExprStatement(SageBuilder::buildPlusAssignOp(
-                                     SageBuilder::buildVarRefExp(tile_iterator),
-                                     SageBuilder::buildDotExp(
-                                       SageBuilder::buildDotExp(
-                                         SageInterface::copyExpression(runtime_loop_desc),
-                                         SageBuilder::buildPntrArrRefExp(
-                                           SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_kernel_loop_symbols.tiles_symbol),
-                                           SageBuilder::buildIntVal(tile_id)
-                                         )
-                                       ),
-                                       SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_kernel_loop_symbols.tiles_stride_symbol)
-                                     )
-                                   )); // 'tile_iterator' += 'runtime_loop_desc'.tiles['tile_id'].stride
-      result_bb->append_statement(inc_stmt);
-    }
-    /// \todo add assert if language authorizes it: "assert('tile_iterator' == 'runtime_loop_desc'.tiles['tile_id'].upper)"
-    return std::pair<SgStatement *, std::vector<SgScopeStatement *> >(result_bb, result_scopes);
-  }
-  else {
-    SgExpression * lower_bound = base;
-    SgExpression * upper_bound = SageBuilder::buildAddOp(
-                                   SageInterface::copyExpression(base),
-                                   SageBuilder::buildDotExp(
-                                     SageBuilder::buildDotExp(
-                                       runtime_loop_desc,
-                                       SageBuilder::buildPntrArrRefExp(
-                                         SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_kernel_loop_symbols.tiles_symbol),
-                                         SageBuilder::buildIntVal(tile_id)
-                                       )
-                                     ),
-                                     SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_kernel_loop_symbols.tiles_length_symbol)
-                                   )
-                                 ); // 'base' + 'runtime_loop_desc'.tiles['tile_id'].length
-
-    SgExprStatement * init_stmt = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(SageBuilder::buildVarRefExp(tile_iterator), lower_bound));
-    SgExprStatement * test_stmt  = SageBuilder::buildExprStatement(SageBuilder::buildLessThanOp(SageBuilder::buildVarRefExp(tile_iterator), upper_bound));;
-    SgExpression * inc_expr = SageBuilder::buildPlusAssignOp(
-                                SageBuilder::buildVarRefExp(tile_iterator),
-                                SageBuilder::buildDotExp(
-                                  SageBuilder::buildDotExp(
-                                    SageInterface::copyExpression(runtime_loop_desc),
-                                    SageBuilder::buildPntrArrRefExp(
-                                      SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_kernel_loop_symbols.tiles_symbol),
-                                      SageBuilder::buildIntVal(tile_id)
-                                    )
-                                  ),
-                                  SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_kernel_loop_symbols.tiles_stride_symbol)
-                                )
-                              ); // 'tile_iterator' += 'runtime_loop_desc'.tiles['tile_id'].stride
-
-    SgBasicBlock * for_body = SageBuilder::buildBasicBlock();
-    SgForStatement * for_stmt = SageBuilder::buildForStatement(init_stmt, test_stmt, inc_expr, for_body);
-
-    return std::pair<SgStatement *, std::vector<SgScopeStatement *> >(for_stmt, std::vector<SgScopeStatement *>(1, for_body));
-  }
-  assert(false);
-}
-
 template <>
 std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
   DLX::KLT_Annotation<DLX::OpenACC::language_t>,
@@ -380,62 +295,37 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
   Runtime::OpenACC
 > (
   LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t * loop,
-  unsigned & loop_cnt,
+  size_t & loop_cnt,
+  size_t & tile_cnt,
   std::map<LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *, Runtime::OpenACC::a_loop> & loop_descriptors_map,
-  Runtime::OpenACC::loop_shape_t * shape,
+  LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC>::loop_tiling_t & tiling,
   const Kernel<
     DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC
   >::local_symbol_maps_t & local_symbol_maps
 ) {
-  if (!loop->isDistributed()) {
+  if (tiling.tiles.empty()) {
     std::map<SgVariableSymbol *, SgVariableSymbol *>::const_iterator it_sym_to_local = local_symbol_maps.iterators.find(loop->iterator);
     assert(it_sym_to_local != local_symbol_maps.iterators.end());
-    SgVariableSymbol * local_it_sym = it_sym_to_local->second;
 
-    SgExpression * lower_bound = translateConstExpression(loop->lower_bound, local_symbol_maps.parameters, local_symbol_maps.iterators);
-    SgExpression * upper_bound = translateConstExpression(loop->upper_bound, local_symbol_maps.parameters, local_symbol_maps.iterators);
-
-    SgExprStatement * init_stmt = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(SageBuilder::buildVarRefExp(local_it_sym), lower_bound));
-    SgExprStatement * test_stmt  = SageBuilder::buildExprStatement(SageBuilder::buildLessThanOp(SageBuilder::buildVarRefExp(local_it_sym), upper_bound));;
+    SgExprStatement * init_stmt = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+                                    SageBuilder::buildVarRefExp(it_sym_to_local->second),
+                                    SageInterface::copyExpression(loop->lower_bound)
+                                  ));
+    SgExprStatement * test_stmt  = SageBuilder::buildExprStatement(SageBuilder::buildLessThanOp(
+                                     SageBuilder::buildVarRefExp(it_sym_to_local->second),
+                                     SageInterface::copyExpression(loop->upper_bound))
+                                   );
     SgExpression * inc_expr = SageBuilder::buildPlusAssignOp(
-                                SageBuilder::buildVarRefExp(local_it_sym),
-                                SageBuilder::buildIntVal(1) /// \todo add stride expression to LoopTrees' loops
+                                SageBuilder::buildVarRefExp(it_sym_to_local->second),
+                                SageInterface::copyExpression(loop->stride)
                               );
-
     SgBasicBlock * for_body = SageBuilder::buildBasicBlock();
     SgForStatement * for_stmt = SageBuilder::buildForStatement(init_stmt, test_stmt, inc_expr, for_body);
-
-    std::map<LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *, Runtime::OpenACC::a_loop>::const_iterator it_loop_desc = loop_descriptors_map.find(loop);
-    if (it_loop_desc == loop_descriptors_map.end()) {
-      Runtime::OpenACC::a_loop loop_desc;
-        loop_desc.id = loop_cnt++;
-        loop_desc.lb = loop->lower_bound;
-        loop_desc.ub = loop->upper_bound;
-        loop_desc.tile_0 = 0;
-        loop_desc.gang   = 1;
-        loop_desc.tile_1 = 1;
-        loop_desc.worker = 1;
-        loop_desc.tile_2 = 1;
-        loop_desc.vector = 1;
-        loop_desc.tile_3 = 1;
-        loop_desc.unroll_tile_0 = false;
-        loop_desc.unroll_tile_1 = false;
-        loop_desc.unroll_tile_2 = false;
-        loop_desc.unroll_tile_3 = false;
-
-      loop_descriptors_map.insert(
-          std::pair<
-            LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *,
-            Runtime::OpenACC::a_loop
-          >(loop, loop_desc)
-      );
-    }
 
     return std::pair<SgStatement *, std::vector<SgScopeStatement *> >(for_stmt, std::vector<SgScopeStatement *>(1, for_body));
   }
   else {
-    assert(shape != NULL);
-    unsigned loop_id = 0;
+    size_t loop_id;
 
     std::map<LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *, Runtime::OpenACC::a_loop>::const_iterator it_loop_desc = loop_descriptors_map.find(loop);
     if (it_loop_desc == loop_descriptors_map.end()) {
@@ -443,17 +333,8 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
         loop_desc.id = loop_cnt++;
         loop_desc.lb = loop->lower_bound;
         loop_desc.ub = loop->upper_bound;
-        loop_desc.tile_0 = shape->tile_0;
-        loop_desc.gang   = shape->gang;
-        loop_desc.tile_1 = shape->tile_1;
-        loop_desc.worker = shape->worker;
-        loop_desc.tile_2 = shape->tile_2;
-        loop_desc.vector = shape->vector;
-        loop_desc.tile_3 = shape->tile_3;
-        loop_desc.unroll_tile_0 = shape->unroll_tile_0;
-        loop_desc.unroll_tile_1 = shape->unroll_tile_1;
-        loop_desc.unroll_tile_2 = shape->unroll_tile_2;
-        loop_desc.unroll_tile_3 = shape->unroll_tile_3;
+        loop_desc.stride = loop->stride;
+        loop_desc.tiles = tiling.tiles;
 
       loop_id = loop_desc.id;
 
@@ -469,166 +350,128 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
 
     std::vector<SgScopeStatement *>::iterator it_scopes;
     std::pair<SgStatement *, std::vector<SgScopeStatement *> > result(NULL, std::vector<SgScopeStatement *>(1, NULL));
-    SgExpression * runtime_loop_desc = SageBuilder::buildArrowExp(
-                                         SageBuilder::buildVarRefExp(local_symbol_maps.context),
-                                         SageBuilder::buildPntrArrRefExp(
-                                           SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_context_symbols.loops_symbol),
-                                           SageBuilder::buildIntVal(loop_id)
+
+    SgExpression * lower_bound = SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.loop_lower_symbol),
+      SageBuilder::buildExprListExp(
+        SageBuilder::buildVarRefExp(local_symbol_maps.context),
+        SageBuilder::buildIntVal(loop_id)
+      )
+    ); /// acc_get_loop_lower('ctx', 'loop_id')
+
+    std::vector<Runtime::OpenACC::tile_desc_t>::iterator it_tile;
+    for (it_tile = tiling.tiles.begin(); it_tile != tiling.tiles.end(); it_tile++) {
+      size_t tile_id = tile_cnt++;
+      it_tile->id = tile_id;
+
+      std::vector<SgScopeStatement *> scopes;
+      for (it_scopes = result.second.begin(); it_scopes != result.second.end(); it_scopes++) {
+        switch (it_tile->kind) {
+          case Runtime::OpenACC::e_static_tile:
+          case Runtime::OpenACC::e_dynamic_tile:
+          {
+            SgExpression * upper_bound;
+            if (it_tile->kind == Runtime::OpenACC::e_static_tile) {
+              upper_bound = SageBuilder::buildAddOp(
+                SageInterface::copyExpression(lower_bound),
+                SageBuilder::buildIntVal(it_tile->param.length)
+              ); // 'lower_bound' + 'it_tile->param.length'
+            }
+            else if (it_tile->kind == Runtime::OpenACC::e_dynamic_tile) {
+              upper_bound = SageBuilder::buildAddOp(
+                SageInterface::copyExpression(lower_bound),
+                SageBuilder::buildFunctionCallExp(
+                  SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.tile_length_symbol),
+                  SageBuilder::buildExprListExp(
+                    SageBuilder::buildVarRefExp(local_symbol_maps.context),
+                    SageBuilder::buildIntVal(tile_id)
+                  )
+                )
+              ); // 'lower_bound' + acc_get_tile_length('ctx', 'tile_id')
+            }
+            else assert(false);
+
+            SgExprStatement * init_stmt = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+                                            SageBuilder::buildVarRefExp(it_tile->iterator_sym),
+                                            SageInterface::copyExpression(lower_bound)
+                                          )); // 'tile_iterator' = 'lower_bound'
+            SgExprStatement * test_stmt  = SageBuilder::buildExprStatement(
+                                             SageBuilder::buildLessThanOp(SageBuilder::buildVarRefExp(it_tile->iterator_sym), upper_bound)
+                                           ); // 'tile_iterator' < 'upper_bound'
+            SgExpression * inc_expr = SageBuilder::buildPlusAssignOp(
+                                        SageBuilder::buildVarRefExp(it_tile->iterator_sym),
+                                        SageBuilder::buildFunctionCallExp(
+                                          SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.tile_stride_symbol),
+                                          SageBuilder::buildExprListExp(
+                                            SageBuilder::buildVarRefExp(local_symbol_maps.context),
+                                            SageBuilder::buildIntVal(tile_id)
+                                          )
+                                        )
+                                      ); // 'tile_iterator' += acc_get_tile_stride('ctx', 'tile_id')
+
+            SgBasicBlock * for_body = SageBuilder::buildBasicBlock();
+            SgForStatement * for_stmt = SageBuilder::buildForStatement(init_stmt, test_stmt, inc_expr, for_body);
+
+            if (*it_scopes == NULL) {
+              assert(result.first == NULL && result.second.size() == 1);
+              result.first = for_stmt;
+              scopes.push_back(for_body);
+            }
+            else {
+              assert(result.first != NULL);
+
+              SageInterface::appendStatement(for_stmt, *it_scopes);
+              scopes.push_back(for_body);
+            }
+          
+            break;
+          }
+          case Runtime::OpenACC::e_gang_tile:
+          case Runtime::OpenACC::e_worker_tile:
+          {
+            SgFunctionSymbol * function_symbol;
+            if (it_tile->kind == Runtime::OpenACC::e_gang_tile)
+              function_symbol = Runtime::OpenACC::runtime_device_function_symbols.gang_iter_symbol;
+            else if (it_tile->kind == Runtime::OpenACC::e_worker_tile)
+              function_symbol = Runtime::OpenACC::runtime_device_function_symbols.worker_iter_symbol;
+            else assert(false);
+
+            SgExprStatement * set_it = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+                                         SageBuilder::buildVarRefExp(it_tile->iterator_sym),
+                                         SageBuilder::buildFunctionCallExp(
+                                           SageBuilder::buildFunctionRefExp(function_symbol),
+                                           SageBuilder::buildExprListExp(
+                                             SageBuilder::buildVarRefExp(local_symbol_maps.context),
+                                             SageBuilder::buildIntVal(tile_id),
+                                             SageInterface::copyExpression(lower_bound),
+                                             SageBuilder::buildIntVal(it_tile->param.level)
+                                           )
                                          )
-                                       ); // ctx->loops['loop_id']
-    SgExpression * base = SageBuilder::buildDotExp(
-                            SageBuilder::buildDotExp(
-                              SageInterface::copyExpression(runtime_loop_desc),
-                              SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_kernel_loop_symbols.original_symbol)
-                            ),
-                            SageBuilder::buildVarRefExp(Runtime::OpenACC::runtime_loop_desc_symbols.lower_symbol)
-                          ); // ctx->loops['loop_id'].original.lower
+                                       )); // 'tile_iterator' = acc_gang_iteration('ctx', 'tile_id', 'lower_bound', 'it_tile->param.lvl')
 
-    if (shape->tile_0 != 1) {
-      std::pair<SgStatement *, std::vector<SgScopeStatement *> > tile = makeTile(
-        shape->iterators[0],
-        SageInterface::copyExpression(base),
-        0,
-        SageInterface::copyExpression(runtime_loop_desc),
-        shape->tile_0,
-        shape->unroll_tile_0,
-        local_symbol_maps
-      );
-      base = SageBuilder::buildVarRefExp(shape->iterators[0]);
+            if (*it_scopes == NULL) {
+              assert(result.first == NULL && result.second.size() == 1);
+              *it_scopes = SageBuilder::buildBasicBlock();
+              result.first = *it_scopes;
+            }
+            SageInterface::appendStatement(set_it, *it_scopes);
 
-      if (result.first == NULL) {
-        result.first = tile.first;
-        result.second.clear();
-        result.second.insert(result.second.end(), tile.second.begin(), tile.second.end());
-      }
-      else
-        assert(false); // Not reachable: first tile
-    }
-
-    if (shape->gang != 1) {
-      for (it_scopes = result.second.begin(); it_scopes != result.second.end(); it_scopes++) {
-        SgStatement * set_gang_it = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
-          SageBuilder::buildVarRefExp(shape->iterators[1]),
-          SageBuilder::buildFunctionCallExp(
-            SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.gang_iter_symbol),
-            SageBuilder::buildExprListExp(
-              SageBuilder::buildVarRefExp(local_symbol_maps.context),
-              SageBuilder::buildIntVal(loop_id),
-              SageInterface::copyExpression(base)
-            )
-          )
-        ));
-        if (*it_scopes == NULL) {
-          assert(result.first == NULL && result.second.size() == 1);
-          *it_scopes = SageBuilder::buildBasicBlock();
-          result.first = *it_scopes;
-        }
-        SageInterface::appendStatement(set_gang_it, *it_scopes);
-      }
-      base = SageBuilder::buildVarRefExp(shape->iterators[1]);
-    }
-
-    if (shape->tile_1 != 1) {
-      std::vector<SgScopeStatement *> scopes;
-      scopes.reserve(result.second.size());
-      for (it_scopes = result.second.begin(); it_scopes != result.second.end(); it_scopes++) {
-        std::pair<SgStatement *, std::vector<SgScopeStatement *> > tile = makeTile(
-          shape->iterators[2], SageInterface::copyExpression(base), 2, SageInterface::copyExpression(runtime_loop_desc), shape->tile_1, shape->unroll_tile_1, local_symbol_maps
-        );
-
-        if (*it_scopes == NULL) {
-          assert(result.first == NULL && result.second.size() == 1);
-          result.first = tile.first;
-          scopes.insert(scopes.end(), tile.second.begin(), tile.second.end());
-        }
-        else {
-          assert(result.first != NULL);
-
-          SageInterface::appendStatement(tile.first, *it_scopes);
-          scopes.insert(scopes.end(), tile.second.begin(), tile.second.end());
+            break;
+          }
+          case Runtime::OpenACC::e_vector_tile:
+            assert(false);
+          default:
+            assert(false);
         }
       }
-      result.second = scopes;
-      base = SageBuilder::buildVarRefExp(shape->iterators[2]);
+
+      if (!scopes.empty())
+        result.second = scopes;
+
+      delete lower_bound;
+      lower_bound = SageBuilder::buildVarRefExp(it_tile->iterator_sym);
     }
-
-    if (shape->worker != 1) {
-      for (it_scopes = result.second.begin(); it_scopes != result.second.end(); it_scopes++) {
-        SgStatement * set_worker_it = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
-          SageBuilder::buildVarRefExp(shape->iterators[3]),
-          SageBuilder::buildFunctionCallExp(
-            SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.worker_iter_symbol),
-            SageBuilder::buildExprListExp(
-              SageBuilder::buildVarRefExp(local_symbol_maps.context),
-              SageBuilder::buildIntVal(loop_id),
-              SageInterface::copyExpression(base)
-            )
-          )
-        ));
-        if (*it_scopes == NULL) {
-          assert(result.first == NULL && result.second.size() == 1);
-          *it_scopes = SageBuilder::buildBasicBlock();
-          result.first = *it_scopes;
-        }
-        SageInterface::appendStatement(set_worker_it, *it_scopes);
-      }
-      base = SageBuilder::buildVarRefExp(shape->iterators[3]);
-    }
-
-    if (shape->tile_2 != 1) {
-      std::vector<SgScopeStatement *> scopes;
-      scopes.reserve(result.second.size());
-      for (it_scopes = result.second.begin(); it_scopes != result.second.end(); it_scopes++) {
-        std::pair<SgStatement *, std::vector<SgScopeStatement *> > tile = makeTile(
-          shape->iterators[4], SageInterface::copyExpression(base), 4, SageInterface::copyExpression(runtime_loop_desc), shape->tile_2, shape->unroll_tile_2, local_symbol_maps
-        );
-
-        if (*it_scopes == NULL) {
-          assert(result.first == NULL && result.second.size() == 1);
-          result.first = tile.first;
-          scopes.insert(scopes.end(), tile.second.begin(), tile.second.end());
-        }
-        else {
-          assert(result.first != NULL);
-
-          SageInterface::appendStatement(tile.first, *it_scopes);
-          scopes.insert(scopes.end(), tile.second.begin(), tile.second.end());
-        }
-      }
-      result.second = scopes;
-      base = SageBuilder::buildVarRefExp(shape->iterators[4]);
-    }
-
-    if (shape->vector == 0) {
-      assert(false); // Dynamic vector cannot be generated
-    }
-    else if (shape->vector > 1) {
-      assert(false); /// \todo generate vector expression from contained statement, should be done by 'generateStatement'
-    }
-
-    if (shape->tile_3 != 1) {
-      std::vector<SgScopeStatement *> scopes;
-      scopes.reserve(result.second.size());
-      for (it_scopes = result.second.begin(); it_scopes != result.second.end(); it_scopes++) {
-        std::pair<SgStatement *, std::vector<SgScopeStatement *> > tile = makeTile(
-          shape->iterators[6], SageInterface::copyExpression(base), 6, SageInterface::copyExpression(runtime_loop_desc), shape->tile_3, shape->unroll_tile_3, local_symbol_maps
-        );
-
-        if (*it_scopes == NULL) {
-          assert(result.first == NULL && result.second.size() == 1);
-          result.first = tile.first;
-          scopes.insert(scopes.end(), tile.second.begin(), tile.second.end());
-        }
-        else {
-          assert(result.first != NULL);
-
-          SageInterface::appendStatement(tile.first, *it_scopes);
-          scopes.insert(scopes.end(), tile.second.begin(), tile.second.end());
-        }
-      }
-      result.second = scopes;
-      base = SageBuilder::buildVarRefExp(shape->iterators[6]);
-    }
+    delete lower_bound;
 
     return result;
   }

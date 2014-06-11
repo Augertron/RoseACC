@@ -1,11 +1,6 @@
 
 #include "openacc_spec.hpp"
 
-#include "DLX/Core/frontend.hpp"
-#include "DLX/Core/compiler.hpp"
-
-#include "KLT/OpenACC/iteration-mapper.hpp"
-
 #include "MDCG/OpenACC/model.hpp"
 
 #include "DLX/OpenACC/language.hpp"

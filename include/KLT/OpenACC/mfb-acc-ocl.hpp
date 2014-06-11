@@ -4,6 +4,7 @@
 
 #include "KLT/Core/kernel.hpp"
 #include "KLT/Core/loop-trees.hpp"
+#include "KLT/Core/loop-tiler.hpp"
 #include "KLT/OpenACC/runtime-openacc.hpp"
 #include "KLT/OpenACC/language-opencl.hpp"
 
@@ -34,8 +35,8 @@ class KLT<Kernel_OpenCL_OpenACC> {
       unsigned long file_id;
       std::map<
         ::KLT::LoopTrees< ::DLX::KLT_Annotation< ::DLX::OpenACC::language_t> >::loop_t *,
-        Runtime::loop_shape_t *
-      > shapes;
+        ::KLT::LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC>::loop_tiling_t *
+      > tiling;
 
       object_desc_t(
         unsigned id_,

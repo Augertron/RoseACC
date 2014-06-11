@@ -24,9 +24,6 @@ roseacc_LDADD= \
   -lboost_filesystem -lboost_system \
   -lsqlite3
 
-check-local: clean-local roseacc
-	./roseacc -I$(top_srcdir)/../libopenacc/include -c $(top_srcdir)/../tests/101/kernel-openacc.c
-
 clean-local:
 	rm -rf host-data.* kernels.cl kernel-openacc.o rose_kernel-openacc.c  versions.db
 

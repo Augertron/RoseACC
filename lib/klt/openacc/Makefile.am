@@ -5,10 +5,10 @@ CXXFLAGS=-g -O0
 
 libKLT_openacc_la_SOURCES= \
   dlx-openacc.cpp \
+  loop-tiler.cpp \
   runtime-openacc.cpp \
   mfb-openacc.cpp \
   klt-openacc.cpp \
-  iteration-mapper.cpp \
   code-generation.cpp
 libKLT_openacc_la_CXXFLAGS= \
   -I$(srcdir)/../../../include \
