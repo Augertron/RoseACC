@@ -28,7 +28,7 @@ class OpenACC {
 
       enum tile_kind_e kind;
       union {
-        size_t length;
+        size_t nbr_it;
         size_t level;
       } param;
 

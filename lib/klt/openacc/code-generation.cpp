@@ -370,14 +370,14 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
           case Runtime::OpenACC::e_static_tile:
           case Runtime::OpenACC::e_dynamic_tile:
           {
-            SgExpression * upper_bound;
+            SgExpression * upper_bound;/*
             if (it_tile->kind == Runtime::OpenACC::e_static_tile) {
               upper_bound = SageBuilder::buildAddOp(
                 SageInterface::copyExpression(lower_bound),
                 SageBuilder::buildIntVal(it_tile->param.length)
               ); // 'lower_bound' + 'it_tile->param.length'
             }
-            else if (it_tile->kind == Runtime::OpenACC::e_dynamic_tile) {
+            else if (it_tile->kind == Runtime::OpenACC::e_dynamic_tile) {*/
               upper_bound = SageBuilder::buildAddOp(
                 SageInterface::copyExpression(lower_bound),
                 SageBuilder::buildFunctionCallExp(
@@ -388,8 +388,8 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
                   )
                 )
               ); // 'lower_bound' + acc_get_tile_length('ctx', 'tile_id')
-            }
-            else assert(false);
+            /*}
+            else assert(false);*/
 
             SgExprStatement * init_stmt = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
                                             SageBuilder::buildVarRefExp(it_tile->iterator_sym),

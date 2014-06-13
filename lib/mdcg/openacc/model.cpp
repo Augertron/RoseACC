@@ -1,5 +1,6 @@
 
 #include "MDCG/OpenACC/model.hpp"
+#include "KLT/Core/loop-trees.hpp"
 
 namespace MDCG {
 
@@ -21,6 +22,39 @@ SgExpression * TileDesc::createFieldInitializer(
   unsigned file_id
 ) {
   switch (field_id) {
+    case 0:
+      /// size_t id;
+      return SageBuilder::buildIntVal(input.id);
+    case 1:
+      /// enum acc_tile_kind_e kind;
+      switch (input.kind) {
+        case ::KLT::Runtime::OpenACC::e_static_tile:
+          return SageBuilder::buildIntVal(4);
+        case ::KLT::Runtime::OpenACC::e_dynamic_tile:
+          return SageBuilder::buildIntVal(3);
+        case ::KLT::Runtime::OpenACC::e_gang_tile:
+          return SageBuilder::buildIntVal(0);
+        case ::KLT::Runtime::OpenACC::e_worker_tile:
+          return SageBuilder::buildIntVal(1);
+        case ::KLT::Runtime::OpenACC::e_vector_tile:
+          return SageBuilder::buildIntVal(2);
+        default:
+          assert(false);
+      }
+    case 2:
+      /// enum acc_tile_kind_e kind;
+      switch (input.kind) {
+        case ::KLT::Runtime::OpenACC::e_static_tile:
+        case ::KLT::Runtime::OpenACC::e_dynamic_tile:
+          return SageBuilder::buildIntVal(input.param.nbr_it);
+        case ::KLT::Runtime::OpenACC::e_gang_tile:
+        case ::KLT::Runtime::OpenACC::e_worker_tile:
+          return SageBuilder::buildIntVal(input.param.level);
+        case ::KLT::Runtime::OpenACC::e_vector_tile:
+          return SageBuilder::buildIntVal(0);
+        default:
+          assert(false);
+      }
     default:
       assert(false);
   }
@@ -34,10 +68,37 @@ SgExpression * LoopDesc::createFieldInitializer(
   unsigned file_id
 ) {
   switch (field_id) {
+    case 0:
+      /// size_t id;
+      return SageBuilder::buildIntVal(input.id);
+    case 1:
+      /// size_t num_tiles;
+      return SageBuilder::buildIntVal(input.id);
+    case 2:
+    {
+      /// struct acc_tile_desc_t_ * tiles;
+      std::ostringstream decl_name;
+        decl_name << "tile_" << &input;
+      KernelVersion::version_cnt = 0;
+      MDCG::Model::type_t type = element->node->type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+      return codegen.createArrayPointer<TileDesc>(
+               type->node->base_class,
+               input.tiles.size(),
+               input.tiles.begin(),
+               input.tiles.end(),
+               file_id,
+               decl_name.str()
+             );
+    }
     default:
       assert(false);
   }
 }
+
+size_t KernelVersion::version_cnt;
 
 SgExpression * KernelVersion::createFieldInitializer(
   const MDCG::CodeGenerator & codegen,
@@ -47,23 +108,30 @@ SgExpression * KernelVersion::createFieldInitializer(
   unsigned file_id
 ) {
   switch (field_id) {
-/*
     case 0:
-      return SageBuilder::buildIntVal(s_version_id++);
+      return SageBuilder::buildIntVal(version_cnt++);
     case 1:
-      /// /todo unsigned long num_gang;
-      return SageBuilder::buildIntVal(0);
+      /// size_t num_gang[3];
+      return SageBuilder::buildAggregateInitializer(SageBuilder::buildExprListExp(
+        SageBuilder::buildIntVal(input->num_gangs[0]),
+        SageBuilder::buildIntVal(input->num_gangs[1]),
+        SageBuilder::buildIntVal(input->num_gangs[2])
+      ));
     case 2:
-      /// /todo unsigned long num_worker;
-      return SageBuilder::buildIntVal(0);
+      /// size_t num_worker[3];
+      return SageBuilder::buildAggregateInitializer(SageBuilder::buildExprListExp(
+        SageBuilder::buildIntVal(input->num_workers[0]),
+        SageBuilder::buildIntVal(input->num_workers[1]),
+        SageBuilder::buildIntVal(input->num_workers[2])
+      ));
     case 3:
-      /// /todo unsigned long vector_length;
-      return SageBuilder::buildIntVal(1);
+      /// size_t vector_length;
+      return SageBuilder::buildIntVal(input->vector_length);
     case 4:
     {
       /// struct acc_loop_t_ * loops;
       std::ostringstream decl_name;
-        decl_name << "loops_" << input;
+        decl_name << "loop_" << input;
 
       MDCG::Model::type_t type = element->node->type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
@@ -79,12 +147,234 @@ SgExpression * KernelVersion::createFieldInitializer(
              );
     }
     case 5:
+    {
+      /// size_t num_tiles;
+      size_t num_tiles = 0;
+      std::vector<Runtime::a_loop>::const_iterator it_loop;
+      for (it_loop = input->loops.begin(); it_loop != input->loops.end(); it_loop++)
+        num_tiles += it_loop->tiles.size();
+      return SageBuilder::buildIntVal(num_tiles);
+    }
+    case 6:
       /// char * suffix;
       return SageBuilder::buildStringVal(input->kernel_name);
-    case 6:
+    case 7:
       /// acc_device_t device_affinity;
       return SageBuilder::buildIntVal(0); /// \todo use 'acc_device_any'
-*/
+    default:
+      assert(false);
+  }
+}
+
+template <typename T>
+SgExpression * createIndexList(
+  const MDCG::CodeGenerator & codegen,
+  const std::list<T *> & input,
+  const std::vector<T *> & reference,
+  std::string name,
+  unsigned file_id
+) {
+  SgExprListExp * expr_list = SageBuilder::buildExprListExp();
+  SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
+
+  typename std::list<T *>::const_iterator it;
+  for (it = input.begin(); it != input.end(); it++) {
+    typename std::vector<T *>::const_iterator it_ref = std::find(reference.begin(), reference.end(), *it);
+    assert(it_ref != reference.end());
+
+    size_t idx = it_ref - reference.begin();
+    expr_list->append_expression(SageBuilder::buildIntVal(idx));
+  }
+
+  SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+  assert(global_scope_across_files != NULL);
+  SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
+  assert(size_t_symbol != NULL);
+  SgType * size_t_type = isSgType(size_t_symbol->get_type());
+  assert(size_t_type != NULL);
+  size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input.size()));
+
+  MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(name, size_t_type, init, NULL, file_id, false, true);
+  MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+
+  return SageBuilder::buildVarRefExp(var_decl_res.symbol);
+}
+
+SgExpression * KernelDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  const Kernel::arguments_t & args = input->getArguments();
+  const std::vector<Kernel::a_kernel *> & versions = input->getKernels();
+
+  switch (field_id) {
+    case 0:
+      /// size_t id;
+      return SageBuilder::buildIntVal(input->id);
+    case 1:
+      /// char * name;
+      return SageBuilder::buildStringVal("");
+    case 2:
+      /// size_t num_params;
+      return SageBuilder::buildIntVal(args.parameters.size());
+    case 3:
+    {
+      /// size_t * param_ids;
+      std::ostringstream decl_name;
+        decl_name << "param_ids_" << input;
+      return createIndexList<SgVariableSymbol>(codegen, args.parameters, input->getLoopTree().getParameters(), decl_name.str(), file_id);
+    }
+    case 4:
+      /// size_t num_scalars;
+      return SageBuilder::buildIntVal(args.scalars.size());
+    case 5:
+    {
+      /// size_t * scalar_ids;
+      std::ostringstream decl_name;
+        decl_name << "scalar_ids_" << input;
+      return createIndexList<SgVariableSymbol>(codegen, args.scalars, input->getLoopTree().getScalars(), decl_name.str(), file_id);
+    }
+    case 6:
+      /// size_t num_datas;
+      return SageBuilder::buildIntVal(args.datas.size());
+    case 7:
+    {
+      /// size_t * data_ids;
+      std::ostringstream decl_name;
+        decl_name << "data_ids_" << input;
+      return createIndexList< ::KLT::Data<Annotation> >(codegen, args.datas, input->getLoopTree().getDatas(), decl_name.str(), file_id);
+    }
+    case 8:
+    {
+      /// size_t num_loops;
+      return SageBuilder::buildIntVal(input->getLoops().size());
+    }
+    case 9:
+    {
+      /// size_t * loop_ids;
+      std::ostringstream decl_name;
+        decl_name << "loop_ids_" << input;
+      SgExprListExp * expr_list = SageBuilder::buildExprListExp();
+      SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
+
+      std::vector< ::KLT::LoopTrees<Annotation>::loop_t *>::const_iterator it;
+      for (it = input->getLoops().begin(); it != input->getLoops().end(); it++)
+        expr_list->append_expression(SageBuilder::buildIntVal(input->getLoopTree().getLoopID(*it)));
+
+      SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+      assert(global_scope_across_files != NULL);
+      SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
+      assert(size_t_symbol != NULL);
+      SgType * size_t_type = isSgType(size_t_symbol->get_type());
+      assert(size_t_type != NULL);
+      size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input->getLoops().size()));
+
+      MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), size_t_type, init, NULL, file_id, false, true);
+      MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+
+      return SageBuilder::buildVarRefExp(var_decl_res.symbol);
+    }
+    case 10:
+      /// unsigned num_versions;
+      return SageBuilder::buildIntVal(versions.size());
+    case 11:
+    {
+      /// struct acc_kernel_version_t_ * versions;
+      std::ostringstream decl_name;
+        decl_name << "versions_" << input;
+      KernelVersion::version_cnt = 0;
+      MDCG::Model::type_t type = element->node->type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+      return codegen.createArrayPointer<KernelVersion>(
+               type->node->base_class,
+               versions.size(),
+               versions.begin(),
+               versions.end(),
+               file_id,
+               decl_name.str()
+             );
+    }
+    case 12:
+    {
+      /// \todo acc_loop_splitter_t * splitted_loop;
+      return SageBuilder::buildIntVal(0);
+    }
+    case 13:
+    {
+      /// \todo size_t * version_by_devices; 
+      return SageBuilder::buildIntVal(0);
+    }
+    default:
+      assert(false);
+  }
+}
+
+SgExpression * KernelWithDepsDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  switch (field_id) {
+    case 0:
+    {
+      /// acc_kernel_desc_t kernel;
+      std::ostringstream decl_name;
+        decl_name << "kernel_" << input;
+      MDCG::Model::type_t type = element->node->type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_typedef_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+      return codegen.createPointer<KernelDesc>(type->node->base_class, input, file_id, decl_name.str());
+    }
+    case 1:
+      /// size_t num_dependencies;
+      return SageBuilder::buildIntVal(0);
+    case 2:
+      /// size_t * dependencies;
+      return SageBuilder::buildIntVal(0);
+    default:
+      assert(false);
+  }
+}
+
+SgExpression * KernelGroupDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  switch (field_id) {
+    case 0:
+      /// size_t num_kernels;
+      return SageBuilder::buildIntVal(input.size());
+    case 1:
+    {
+      /// struct acc_kernel_with_deps_t_ * kernels;
+      std::ostringstream decl_name;
+        decl_name << "kernel_with_deps_" << &input;
+      MDCG::Model::type_t type = element->node->type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+      return codegen.createArrayPointer<KernelWithDepsDesc>(
+               type->node->base_class,
+               input.size(),
+               input.begin(),
+               input.end(),
+               file_id,
+               decl_name.str()
+             );
+    }
     default:
       assert(false);
   }
@@ -92,14 +382,14 @@ SgExpression * KernelVersion::createFieldInitializer(
 
 SgExpression * createArrayOfTypeSize(
   const MDCG::CodeGenerator & codegen,
-  const std::list<SgVariableSymbol *> & input,
+  const std::vector<SgVariableSymbol *> & input,
   std::string array_name,
   unsigned file_id
 ) {
   SgExprListExp * expr_list = SageBuilder::buildExprListExp();
   SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
 
-  std::list<SgVariableSymbol *>::const_iterator it;
+  std::vector<SgVariableSymbol *>::const_iterator it;
   for (it = input.begin(); it != input.end(); it++)
     expr_list->append_expression(SageBuilder::buildSizeOfOp((*it)->get_type()));
 
@@ -117,112 +407,6 @@ SgExpression * createArrayOfTypeSize(
   return SageBuilder::buildVarRefExp(var_decl_res.symbol);
 }
 
-SgExpression * KernelDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
-  MDCG::Model::field_t element,
-  unsigned field_id,
-  const input_t & input,
-  unsigned file_id
-) {
-  const Kernel::arguments_t & args = input->getArguments();
-  const std::vector<Kernel::a_kernel *> & versions = input->getKernels();
-
-  std::ostringstream names_suffix;
-    names_suffix << "_" << input;
-
-  switch (field_id) {
-/*
-    case 0:
-      /// unsigned id;
-      return SageBuilder::buildIntVal(input->id);
-    case 1:
-      /// char * name;
-      return SageBuilder::buildStringVal("");
-    case 2:
-      /// size_t num_params;
-      return SageBuilder::buildIntVal(args.parameters.size());
-    case 3:
-      /// size_t * size_params;
-      return createArrayOfTypeSize(codegen, args.parameters, std::string("param_sizes") + names_suffix.str(), file_id);
-    case 4:
-      /// size_t num_scalars;
-      return SageBuilder::buildIntVal(args.scalars.size());
-    case 5:
-      /// size_t * size_scalars;
-      return createArrayOfTypeSize(codegen, args.scalars, std::string("scalar_sizes") + names_suffix.str(), file_id);
-    case 6:
-      /// size_t num_datas;
-      return SageBuilder::buildIntVal(args.datas.size());
-    case 7:
-      /// size_t num_loops;
-      return SageBuilder::buildIntVal(input->num_loops);
-    case 8:
-      /// unsigned num_versions;
-      return SageBuilder::buildIntVal(versions.size());
-    case 9:
-    {
-      s_version_id = 0;
-      /// acc_kernel_version_t * versions;
-      MDCG::Model::type_t type = element->node->type;
-      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
-      type = type->node->base_type;
-      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_typedef_type);
-      type = type->node->base_type;
-      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
-      type = type->node->base_type;
-      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createPointerArrayPointer<KernelVersion>(
-               type->node->base_class,
-               versions.size(),
-               versions.begin(),
-               versions.end(),
-               file_id,
-               std::string("versions") + names_suffix.str(),
-               std::string("version") + names_suffix.str()
-             );
-    }
-    case 10:
-    {
-      /// \todo acc_loop_splitter_t * splitted_loop;
-      return SageBuilder::buildIntVal(0);
-    }
-    case 11:
-    {
-      /// \todo size_t * version_by_devices; 
-      return SageBuilder::buildIntVal(0);
-    }
-*/
-    default:
-      assert(false);
-  }
-}
-
-SgExpression * KernelWithDepsDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
-  MDCG::Model::field_t element,
-  unsigned field_id,
-  const input_t & input,
-  unsigned file_id
-) {
-  switch (field_id) {
-    default:
-      assert(false);
-  }
-}
-
-SgExpression * KernelGroupDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
-  MDCG::Model::field_t element,
-  unsigned field_id,
-  const input_t & input,
-  unsigned file_id
-) {
-  switch (field_id) {
-    default:
-      assert(false);
-  }
-}
-
 SgExpression * RegionDesc::createFieldInitializer(
   const MDCG::CodeGenerator & codegen,
   MDCG::Model::field_t element,
@@ -230,15 +414,9 @@ SgExpression * RegionDesc::createFieldInitializer(
   const input_t & input,
   unsigned file_id
 ) {
-  assert(input.kernel_lists.size() == 1);
-  const std::list<Kernel *> & kernels = *(input.kernel_lists.begin());
-
-  std::ostringstream decl_name;
-    decl_name << "kernel_groups_" << input.id;
-
   switch (field_id) {
     case 0:
-      /// unsigned id;
+      /// size_t id;
       return SageBuilder::buildIntVal(input.id);
     case 1:
       /// char * file;
@@ -272,21 +450,37 @@ SgExpression * RegionDesc::createFieldInitializer(
         return SageBuilder::buildIntVal(0);
     case 4:
       /// size_t num_params;
-      return SageBuilder::buildIntVal(0);
+      return SageBuilder::buildIntVal(input.loop_tree->getNumParameters());
     case 5:
+    {
       ///  size_t * size_params;
+      std::ostringstream decl_name;
+        decl_name << "parameters_size_" << input.id;
+      return createArrayOfTypeSize(codegen, input.loop_tree->getParameters(), decl_name.str(), file_id);
+    }
     case 6:
       /// size_t num_scalars;
+      return SageBuilder::buildIntVal(input.loop_tree->getNumScalars());
     case 7:
+    {
       /// size_t * size_scalars;
+      std::ostringstream decl_name;
+        decl_name << "scalars_size_" << input.id;
+      return createArrayOfTypeSize(codegen, input.loop_tree->getScalars(), decl_name.str(), file_id);
+    }
     case 8:
       /// size_t num_datas;
+      return SageBuilder::buildIntVal(input.loop_tree->getNumDatas());
     case 9:
       /// size_t num_loops;
+      return SageBuilder::buildIntVal(input.loop_tree->numberLoops());
     case 10:
       /// size_t num_kernel_groups;
+      return SageBuilder::buildIntVal(input.kernel_lists.size());
     case 11:
     {
+      std::ostringstream decl_name;
+        decl_name << "region_" << input.id << "_groups";
       MDCG::Model::type_t type = element->node->type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
@@ -412,7 +606,7 @@ void KernelDesc::storeToDB(sqlite3 * db_file, unsigned region_id, unsigned kerne
   for (it = versions.begin(); it != versions.end(); it++)
     KernelVersion::storeToDB(db_file, region_id, kernel_id, cnt_version++, *it);
 
-  unsigned num_loops = input->num_loops;
+  unsigned num_loops = input->getLoops().size();
 
   char * err_msg;
   char * query = (char *)malloc(140 * sizeof(char));

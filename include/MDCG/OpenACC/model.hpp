@@ -9,11 +9,8 @@
 namespace MDCG {
 
 namespace OpenACC {
-
 struct TileDesc {
-  struct input_t {
-    /// \todo
-  };
+  typedef Runtime::tile_desc_t input_t;
 
   static SgExpression * createFieldInitializer(
     const MDCG::CodeGenerator & codegen,
@@ -41,6 +38,8 @@ struct LoopDesc {
 };
 
 struct KernelVersion {
+  static size_t version_cnt;
+
   typedef Kernel::a_kernel * input_t;
 
   static SgExpression * createFieldInitializer(

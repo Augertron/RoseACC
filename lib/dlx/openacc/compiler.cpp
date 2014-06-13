@@ -231,9 +231,9 @@ void interpretClauses(
   }
 }
 
-LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::set<SgVariableSymbol *> & iterators, std::set<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map);
+LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map);
 
-LoopTrees::block_t * buildLoopTreeBlock(SgStatement * stmt, LoopTrees * loop_tree, std::set<SgVariableSymbol *> & iterators, std::set<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
+LoopTrees::block_t * buildLoopTreeBlock(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
   LoopTrees::node_t * child = buildLoopTree(stmt, loop_tree, iterators, others, loop_map);
   assert(child != NULL);
   LoopTrees::block_t * block = dynamic_cast<LoopTrees::block_t *>(child);
@@ -244,7 +244,7 @@ LoopTrees::block_t * buildLoopTreeBlock(SgStatement * stmt, LoopTrees * loop_tre
   return block;
 }
 
-LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::set<SgVariableSymbol *> & iterators, std::set<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
+LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
   switch (stmt->variantT()) {
     case V_SgBasicBlock:
     {
@@ -269,28 +269,28 @@ LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std
       SgExpression * stride = NULL;
       assert(SageInterface::getForLoopInformations(for_stmt, iterator, lower_bound, upper_bound, stride));
 
-      iterators.insert(iterator);
+      iterators.push_back(iterator);
       std::vector<SgVarRefExp *>::const_iterator it_var_ref;
       std::vector<SgVarRefExp *> var_refs;
 
       var_refs = SageInterface::querySubTree<SgVarRefExp>(for_stmt->get_for_init_stmt());
       for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
         SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
-        if (iterators.find(sym) == iterators.end())
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end())
           loop_tree->addParameter(sym); // in a loop : !iterator => parameter
       }
 
       var_refs = SageInterface::querySubTree<SgVarRefExp>(for_stmt->get_test());
       for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
         SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
-        if (iterators.find(sym) == iterators.end())
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end())
           loop_tree->addParameter(sym); // in a loop : !iterator => parameter
       }
 
       var_refs = SageInterface::querySubTree<SgVarRefExp>(for_stmt->get_increment());
       for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
         SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
-        if (iterators.find(sym) == iterators.end())
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end())
           loop_tree->addParameter(sym); // in a loop : !iterator => parameter
       }
 
@@ -315,8 +315,8 @@ LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std
       std::vector<SgVarRefExp *>::const_iterator it_var_ref;
       for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
         SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
-        if (iterators.find(sym) == iterators.end())
-          others.insert(sym); 
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end())
+          others.push_back(sym); 
       }
 
       LoopTrees::cond_t * cond = new LoopTrees::cond_t(cond_expr);
@@ -336,8 +336,8 @@ LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std
       std::vector<SgVarRefExp *>::const_iterator it_var_ref;
       for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
         SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
-        if (iterators.find(sym) == iterators.end())
-          others.insert(sym); 
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end())
+          others.push_back(sym); 
       }
 
       return new LoopTrees::stmt_t(stmt);
@@ -378,8 +378,8 @@ void extractLoopTrees(
           region_base = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_loop> *)child->construct)->assoc_nodes.for_loop;
         }
 
-       std::set<SgVariableSymbol *> iterators;
-       std::set<SgVariableSymbol *> others;
+       std::vector<SgVariableSymbol *> iterators;
+       std::vector<SgVariableSymbol *> others;
 
         SgBasicBlock * region_bb = isSgBasicBlock(region_base);
         if (region_bb != NULL) {
@@ -390,20 +390,18 @@ void extractLoopTrees(
         }
         else loop_tree->addTree(buildLoopTree(region_base, loop_tree, iterators, others, loop_map));
 
-        const std::set<SgVariableSymbol *> & params = loop_tree->getParameters();
-        const std::set<KLT::Data<Annotation> *> & datas_ = loop_tree->getDatas();
+        const std::vector<SgVariableSymbol *> & params = loop_tree->getParameters();
+        const std::vector<KLT::Data<Annotation> *> & datas_ = loop_tree->getDatas();
 
-        std::set<SgVariableSymbol *> datas;
-        std::set<KLT::Data<Annotation> *>::const_iterator it_data;
+        std::vector<SgVariableSymbol *> datas;
+        std::vector<KLT::Data<Annotation> *>::const_iterator it_data;
         for (it_data = datas_.begin(); it_data != datas_.end(); it_data++)
-          datas.insert((*it_data)->getVariableSymbol());
+          datas.push_back((*it_data)->getVariableSymbol());
 
-        std::set<SgVariableSymbol *>::const_iterator it_other;
+        std::vector<SgVariableSymbol *>::const_iterator it_other;
         for (it_other = others.begin(); it_other != others.end(); it_other++)
-          if (params.find(*it_other) == params.end() && datas.find(*it_other) == datas.end())
-            loop_tree->addScalar(*it_other); // Nor iterators or parameters or data
-
-        
+          if (std::find(params.begin(), params.end(), *it_other) == params.end() && std::find(datas.begin(), datas.end(), *it_other) == datas.end())
+            loop_tree->addScalar(*it_other); // Neither iterators or parameters or data
 
         loop_tree->toText(std::cout);
 
@@ -471,7 +469,7 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
     compiler_modules.comp_data.regions.push_back(input_region);
   }
 
-//  compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(compiler_modules.region_desc_class, compiler_modules.comp_data, compiler_modules.host_data_file_id, "compiler_data");
+  compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(compiler_modules.region_desc_class, compiler_modules.comp_data, compiler_modules.host_data_file_id, "compiler_data");
 
 //  MDCG::OpenACC::CompilerData::storeToDB(compiler_modules.versions_db_file, compiler_modules.comp_data);
 
