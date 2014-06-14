@@ -20,6 +20,9 @@
 namespace KLT {
 
 template <>
+size_t LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::id_cnt = 0;
+
+template <>
 bool LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t::isDistributed() const {
   std::vector<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::const_iterator it;
   for (it = annotations.begin(); it != annotations.end(); it++) {

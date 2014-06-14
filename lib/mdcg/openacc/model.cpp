@@ -709,11 +709,20 @@ void CompilerData::storeToDB(const std::string & db_file_name, const input_t & i
 unsigned readOpenaccModel(MDCG::ModelBuilder & model_builder, const std::string & libopenacc_inc_dir) {
   unsigned openacc_model = model_builder.create();
 
-  model_builder.add(openacc_model, "compiler",     libopenacc_inc_dir + "/OpenACC/internal", "h");
-  model_builder.add(openacc_model, "region",       libopenacc_inc_dir + "/OpenACC/internal", "h");
-  model_builder.add(openacc_model, "kernel",       libopenacc_inc_dir + "/OpenACC/internal", "h");
-  model_builder.add(openacc_model, "loop",         libopenacc_inc_dir + "/OpenACC/internal", "h");
-  model_builder.add(openacc_model, "api",          libopenacc_inc_dir + "/OpenACC/device",   "cl");
+  model_builder.add(openacc_model, "compiler", libopenacc_inc_dir + "/OpenACC/internal", "h");
+  model_builder.add(openacc_model, "region",   libopenacc_inc_dir + "/OpenACC/internal", "h");
+  model_builder.add(openacc_model, "kernel",   libopenacc_inc_dir + "/OpenACC/internal", "h");
+  model_builder.add(openacc_model, "loop",     libopenacc_inc_dir + "/OpenACC/internal", "h");
+
+  model_builder.add(openacc_model, "api",      libopenacc_inc_dir + "/OpenACC/device", "cl");
+
+  model_builder.add(openacc_model, "region",   libopenacc_inc_dir + "/OpenACC/private", "h");
+  model_builder.add(openacc_model, "kernel",   libopenacc_inc_dir + "/OpenACC/private", "h");
+  model_builder.add(openacc_model, "loop",     libopenacc_inc_dir + "/OpenACC/private", "h");
+  model_builder.add(openacc_model, "data-env", libopenacc_inc_dir + "/OpenACC/private", "h");
+  model_builder.add(openacc_model, "memory",   libopenacc_inc_dir + "/OpenACC/private", "h");
+
+  model_builder.add(openacc_model, "openacc",  libopenacc_inc_dir + "/OpenACC", "h");
 
   return openacc_model;
 }

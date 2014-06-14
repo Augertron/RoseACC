@@ -9,6 +9,12 @@ class SgVariableSymbol;
 class SgFunctionSymbol;
 class SgClassSymbol;
 
+namespace MDCG {
+namespace Model {
+class model_t;
+}
+}
+
 namespace KLT {
 
 namespace Runtime {
@@ -70,7 +76,7 @@ class OpenACC {
     };
     static runtime_device_function_symbols_t runtime_device_function_symbols;
 
-    static void loadAPI(MFB::Driver<MFB::Sage> & mfb_driver, std::string inc_path);
+    static void loadAPI(const MDCG::Model::model_t & model);
 };
 
 }

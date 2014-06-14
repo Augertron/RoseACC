@@ -18,14 +18,7 @@ OpenACC::exec_mode_e OpenACC::default_execution_mode = OpenACC::gr_ws_vs;
 SgClassSymbol * OpenACC::runtime_device_context_symbol = NULL;
 OpenACC::runtime_device_function_symbols_t OpenACC::runtime_device_function_symbols = { NULL, NULL };
 
-void OpenACC::loadAPI(MFB::Driver<MFB::Sage> & mfb_driver, std::string inc_path) {
-  MDCG::ModelBuilder model_builder(mfb_driver);
-  unsigned model_id = model_builder.create();
-
-  model_builder.add(model_id, "api", inc_path + "/OpenACC/device", "cl");
-
-  const MDCG::Model::model_t & model = model_builder.get(model_id);
-
+void OpenACC::loadAPI(const MDCG::Model::model_t & model) {
   MDCG::Model::class_t context_class = model.lookup<MDCG::Model::class_t>("acc_context_t_");
   runtime_device_context_symbol = context_class->node->symbol;
   assert(runtime_device_context_symbol != NULL);

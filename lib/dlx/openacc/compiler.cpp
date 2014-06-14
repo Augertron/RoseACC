@@ -13,9 +13,16 @@
 #include "KLT/Core/loop-trees.hpp"
 #include "KLT/Core/loop-tiler.hpp"
 
+#include "DLX/Core/parser.hpp"
+
 namespace DLX {
 
 namespace OpenACC {
+
+/*!
+ * \addtogroup grp_dlx_openacc_compiler
+ * @{
+ */
 
 compiler_modules_t::compiler_modules_t(
   SgProject * project,
@@ -38,23 +45,80 @@ compiler_modules_t::compiler_modules_t(
   host_data_file_id(0),
   ocl_kernels_file(ocl_kernels_file_),
   versions_db_file(versions_db_file_),
-  region_desc_class(NULL),
-  comp_data()
+  compiler_data_class(NULL),
+  comp_data(),
+  libopenacc_api()
 {
   host_data_file_id = driver.add(boost::filesystem::path(kernels_desc_file_));
     driver.setUnparsedFile(host_data_file_id);
 
   libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, libopenacc_inc_dir);
+
+  // Get base class for host data generation
   std::set<MDCG::Model::class_t> classes;
   model_builder.get(libopenacc_model).lookup<MDCG::Model::class_t>("acc_compiler_data_t_", classes);
   assert(classes.size() == 1);
-  region_desc_class = *(classes.begin());
+  compiler_data_class = *(classes.begin());
 
   comp_data.runtime_dir = SageBuilder::buildStringVal(libopenacc_inc_dir);
   comp_data.ocl_runtime = SageBuilder::buildStringVal("lib/opencl/libopenacc.cl");
   comp_data.kernels_dir = SageBuilder::buildStringVal(kernels_dir);
 
-  KLT::Runtime::OpenACC::loadAPI(driver, libopenacc_inc_dir);
+  // Load libOpenACC API for KLT
+  KLT::Runtime::OpenACC::loadAPI(model_builder.get(libopenacc_model));
+
+  // Load libOpenACC API for transformation
+  loadOpenaccPrivateAPI();
+}
+
+void compiler_modules_t::loadOpenaccPrivateAPI() {
+  const MDCG::Model::model_t & model = model_builder.get(libopenacc_model);
+  MDCG::Model::function_t func;
+
+  func = model.lookup<MDCG::Model::function_t>("acc_push_data_environment");
+  libopenacc_api.push_data_environment = func->node->symbol;
+  assert(libopenacc_api.push_data_environment != NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_pop_data_environment");
+  libopenacc_api.pop_data_environment = func->node->symbol;
+  assert(libopenacc_api.pop_data_environment != NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_build_region");
+  libopenacc_api.build_region = func->node->symbol;
+  assert(libopenacc_api.build_region != NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_region_execute");
+  libopenacc_api.region_execute = func->node->symbol;
+  assert(libopenacc_api.region_execute != NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_copyin_regions_");
+  libopenacc_api.copyin= func->node->symbol;
+  assert(libopenacc_api.copyin!= NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_copyout_regions_");
+  libopenacc_api.copyout= func->node->symbol;
+  assert(libopenacc_api.copyout!= NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_create_regions_");
+  libopenacc_api.create= func->node->symbol;
+  assert(libopenacc_api.create!= NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyin_regions_");
+  libopenacc_api.present_or_copyin= func->node->symbol;
+  assert(libopenacc_api.present_or_copyin!= NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyout_regions_");
+  libopenacc_api.present_or_copyout= func->node->symbol;
+  assert(libopenacc_api.present_or_copyout!= NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_create_regions_");
+  libopenacc_api.present_or_create= func->node->symbol;
+  assert(libopenacc_api.present_or_create!= NULL);
+
+  std::set<MDCG::Model::class_t> classes;
+  model_builder.get(libopenacc_model).lookup<MDCG::Model::class_t>("acc_region_t_", classes);
+  assert(classes.size() == 1);
+  libopenacc_api.region_class = *(classes.begin());
 }
 
 }
@@ -425,10 +489,40 @@ void extractLoopTrees(
   }
 }
 
-/*!
- * \addtogroup grp_dlx_openacc_compiler
- * @{
- */
+SgBasicBlock * buildRegionBlock(LoopTrees * loop_trees, const DLX::OpenACC::compiler_modules_t::libopenacc_api_t & libopenacc_api) {
+  SgBasicBlock * result = SageBuilder::buildBasicBlock();
+
+  // build decl : acc_region_t region = acc_build_region(0);
+
+  SgInitializer * init = SageBuilder::buildAssignInitializer(
+    SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(libopenacc_api.build_region),
+      SageBuilder::buildExprListExp(SageBuilder::buildIntVal(loop_trees->id))
+    )
+  );
+  /// \todo notify MFB that we use libopenacc_api.region_class->node->symbol
+  SgVariableDeclaration * region_decl = SageBuilder::buildVariableDeclaration("region", SageBuilder::buildPointerType(libopenacc_api.region_class->node->symbol->get_type()), init, result);
+  SageInterface::appendStatement(region_decl, result);
+
+  SgVariableSymbol * region_sym = SageInterface::getFirstVarSym(region_decl);
+  assert(region_sym != NULL);
+
+    // set gang/worker/vector info
+    // set data info
+    // set loop info
+
+  // build call : acc_push_data_environment();
+
+  // data : copyin / create
+
+  // build call : acc_region_execute(region);
+
+  // data : copyout
+
+  // build call : acc_pop_data_environment();
+
+  return result;
+}
 
 template <>
 bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compile(
@@ -438,6 +532,7 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
 ) {
   /// \todo verify that it is correct OpenACC.....
 
+  /// Extract LoopTrees from original code
   std::map<Directives::directive_t<OpenACC::language_t> *, LoopTrees *> regions;
   std::map<SgForStatement *, LoopTrees::loop_t *> loop_map;
   extractLoopTrees(directives, regions, loop_map);
@@ -456,11 +551,12 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
     }
   }
 
+  /// Generate kernels
   size_t region_cnt = 0;
   std::map<Directives::directive_t<OpenACC::language_t> *, LoopTrees *>::const_iterator it_region;
   for (it_region = regions.begin(); it_region != regions.end(); it_region++) {
     MDCG::OpenACC::RegionDesc::input_t input_region;
-      input_region.id = region_cnt++;
+      input_region.id = it_region->second->id;
       input_region.file = compiler_modules.ocl_kernels_file;
       input_region.loop_tree = it_region->second;
 
@@ -469,9 +565,52 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
     compiler_modules.comp_data.regions.push_back(input_region);
   }
 
-  compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(compiler_modules.region_desc_class, compiler_modules.comp_data, compiler_modules.host_data_file_id, "compiler_data");
+  /// Generate host data
+  compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(compiler_modules.compiler_data_class, compiler_modules.comp_data, compiler_modules.host_data_file_id, "compiler_data");
 
 //  MDCG::OpenACC::CompilerData::storeToDB(compiler_modules.versions_db_file, compiler_modules.comp_data);
+
+  /// Transforms parallel/kernel directives
+  for (it_region = regions.begin(); it_region != regions.end(); it_region++) {
+    SgBasicBlock * region_block = buildRegionBlock(it_region->second, compiler_modules.libopenacc_api);
+
+    SgStatement * old_region = NULL;
+
+    if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_parallel) {
+      old_region = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(it_region->first->construct))->assoc_nodes.parallel_region;
+      ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(it_region->first->construct))->assoc_nodes.parallel_region = region_block;
+    }
+    else if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_kernel) {
+      old_region = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(it_region->first->construct))->assoc_nodes.kernel_region;
+      ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(it_region->first->construct))->assoc_nodes.kernel_region = region_block;
+    }
+    assert(old_region != NULL);
+
+    if (isSgPragmaDeclaration(old_region)) {
+      assert(it_region->first->successor_list.size() == 1);
+      Directives::directive_t<OpenACC::language_t> * child = it_region->first->successor_list.begin()->second;
+      assert(child->construct->kind == OpenACC::language_t::e_acc_construct_loop);
+      old_region = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_loop> *)child->construct)->assoc_nodes.for_loop;
+    }
+
+    SageInterface::replaceStatement(old_region, region_block);
+  }
+
+  /// Transforms data constructs
+  for (it_directive = directives.begin(); it_directive != directives.end(); it_directive++) {
+    Directives::directive_t<OpenACC::language_t> * directive = *it_directive;
+    if (directive->construct->kind == OpenACC::language_t::e_acc_construct_data) {
+      //assert(false); /// \todo
+    }
+  }
+
+  std::vector<SgPragmaDeclaration * > pragma_decls = SageInterface::querySubTree<SgPragmaDeclaration>(compiler_modules.driver.project);
+  std::vector<SgPragmaDeclaration * >::iterator it_pragma_decl;
+  for (it_pragma_decl = pragma_decls.begin(); it_pragma_decl != pragma_decls.end(); it_pragma_decl++) {
+    std::string directive_string = (*it_pragma_decl)->get_pragma()->get_pragma();
+    if (::DLX::Frontend::consume_label(directive_string, OpenACC::language_t::language_label))
+      SageInterface::removeStatement(*it_pragma_decl);
+  }
 
   return true;
 }

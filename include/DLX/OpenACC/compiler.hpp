@@ -24,9 +24,28 @@ struct compiler_modules_t {
   std::string ocl_kernels_file;
   std::string versions_db_file;
 
-  MDCG::Model::class_t region_desc_class;
+  MDCG::Model::class_t compiler_data_class;
 
   MDCG::OpenACC::CompilerData::input_t comp_data;
+
+  struct libopenacc_api_t {
+    SgFunctionSymbol * push_data_environment;
+    SgFunctionSymbol * pop_data_environment;
+
+    SgFunctionSymbol * build_region;
+    SgFunctionSymbol * region_execute;
+
+    SgFunctionSymbol * copyin;
+    SgFunctionSymbol * copyout;
+    SgFunctionSymbol * create;
+    SgFunctionSymbol * present_or_copyin;
+    SgFunctionSymbol * present_or_copyout;
+    SgFunctionSymbol * present_or_create;
+
+    MDCG::Model::class_t region_class;
+  } libopenacc_api;
+
+  void loadOpenaccPrivateAPI();
 
   compiler_modules_t(
     SgProject * project,
