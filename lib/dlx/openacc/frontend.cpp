@@ -418,6 +418,32 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
 
 template <>
 template <>
+bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e_acc_clause_tile>(
+  std::string & directive_str,
+  SgLocatedNode * directive_node,
+  Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_tile> * clause
+) {
+  DLX::Frontend::Parser parser(directive_str, directive_node);
+  assert(parser.consume('('));
+  parser.skip_whitespace();
+  if (parser.consume("dynamic"))
+    clause->parameters.kind = Directives::generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_tile>::e_dynamic_tile;
+  else if (parser.consume("static")) {
+    clause->parameters.kind = Directives::generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_tile>::e_static_tile;
+    parser.skip_whitespace();
+    assert(parser.consume(','));
+    parser.skip_whitespace();
+    parser.parse<size_t>(clause->parameters.nbr_it);
+  }
+  else assert(false);
+  parser.skip_whitespace();
+  assert(parser.consume(')'));
+  directive_str = parser.getDirectiveString();
+  return true;
+}
+
+template <>
+template <>
 bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e_acc_clause_auto>(
   std::string & directive_str,
   SgLocatedNode * directive_node,

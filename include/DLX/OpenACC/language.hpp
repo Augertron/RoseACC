@@ -296,6 +296,16 @@ struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::
 
 template <>
 template <>
+struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_tile> {
+  enum kind_e {
+    e_dynamic_tile,
+    e_static_tile,
+  } kind;
+  size_t nbr_it;
+};
+
+template <>
+template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_auto> {
   // empty
 };

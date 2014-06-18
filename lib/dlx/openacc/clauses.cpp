@@ -75,6 +75,8 @@ generic_clause_t<OpenACC::language_t> * buildClause<OpenACC::language_t>(OpenACC
       return new clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_device_resident>();
     case OpenACC::language_t::e_acc_clause_collapse:
       return new clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_collapse>();
+    case OpenACC::language_t::e_acc_clause_tile:
+      return new clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_tile>();
     case OpenACC::language_t::e_acc_clause_auto:
       return new clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_auto>();
     case OpenACC::language_t::e_acc_clause_gang:
@@ -200,6 +202,10 @@ bool parseClauseParameters<OpenACC::language_t>(
     case OpenACC::language_t::e_acc_clause_collapse:
       return Frontend::Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e_acc_clause_collapse>(
         directive_str, directive_node, (clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_collapse> *)clause
+      );
+    case OpenACC::language_t::e_acc_clause_tile:
+      return Frontend::Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e_acc_clause_tile>(
+        directive_str, directive_node, (clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_tile> *)clause
       );
     case OpenACC::language_t::e_acc_clause_auto:
       return Frontend::Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e_acc_clause_auto>(

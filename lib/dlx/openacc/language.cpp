@@ -101,6 +101,8 @@ void language_t::init() {
 
   Directives::addClauseLabel<language_t>(e_acc_clause_collapse, "collapse");
 
+  Directives::addClauseLabel<language_t>(e_acc_clause_tile, "tile");
+
   Directives::addClauseLabel<language_t>(e_acc_clause_auto, "auto");
 
   Directives::addClauseLabel<language_t>(e_acc_clause_gang, "gang");
