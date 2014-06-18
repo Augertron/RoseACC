@@ -21,7 +21,21 @@ LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runti
       Runtime::OpenACC::tile_desc_t & tile_desc = *(tiles.insert(tiles.end(), Runtime::OpenACC::tile_desc_t()));
       switch (it_annotation->clause->kind) {
         case DLX::OpenACC::language_t::e_acc_clause_tile:
-          assert(false);
+        {
+          switch (((DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_tile> *)(it_annotation->clause))->parameters.kind) {
+            case DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_tile>::e_static_tile:
+              tile_desc.kind = Runtime::OpenACC::e_static_tile;
+              tile_desc.param.nbr_it = ((DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_tile> *)(it_annotation->clause))->parameters.nbr_it;
+              break;
+            case DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_tile>::e_dynamic_tile:
+              tile_desc.kind = Runtime::OpenACC::e_dynamic_tile;
+              tile_desc.param.nbr_it = 0;
+              break;
+            default:
+              assert(false);
+          }
+          break;
+        }
         case DLX::OpenACC::language_t::e_acc_clause_gang:
         {
            tile_desc.kind = Runtime::OpenACC::e_gang_tile;
