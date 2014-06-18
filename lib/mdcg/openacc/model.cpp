@@ -42,7 +42,7 @@ SgExpression * TileDesc::createFieldInitializer(
           assert(false);
       }
     case 2:
-      /// enum acc_tile_kind_e kind;
+      /// union {...} param;
       switch (input.kind) {
         case ::KLT::Runtime::OpenACC::e_static_tile:
         case ::KLT::Runtime::OpenACC::e_dynamic_tile:
@@ -73,7 +73,7 @@ SgExpression * LoopDesc::createFieldInitializer(
       return SageBuilder::buildIntVal(input.id);
     case 1:
       /// size_t num_tiles;
-      return SageBuilder::buildIntVal(input.id);
+      return SageBuilder::buildIntVal(input.tiles.size());
     case 2:
     {
       /// struct acc_tile_desc_t_ * tiles;
@@ -495,11 +495,32 @@ SgExpression * RegionDesc::createFieldInitializer(
              );
     }
     case 12:
-      /// \todo size_t num_devices;
-      return SageBuilder::buildIntVal(1);
+      /// size_t num_devices;
+      return SageBuilder::buildIntVal(1); /// \todo multidev
     case 13:
-      /// \todo struct { acc_device_t kind; size_t num; } * devices;
-      return SageBuilder::buildIntVal(0); // NULL
+    {
+      /// struct acc_device_id_pair_t { acc_device_t kind; size_t num; } * devices;
+      std::ostringstream decl_name;
+        decl_name << "devices_" << input.id;
+
+      MDCG::Model::type_t type = element->node->type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+
+      SgType * sg_type = SageBuilder::buildArrayType(type->node->type, SageBuilder::buildIntVal(1));
+
+      SgExprListExp * expr_list = SageBuilder::buildExprListExp();
+      SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
+
+      expr_list->append_expression(SageBuilder::buildAggregateInitializer(SageBuilder::buildExprListExp(SageBuilder::buildIntVal(0), SageBuilder::buildIntVal(0))));
+
+      MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), sg_type,init, NULL, file_id, false, true);
+
+      MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+
+      return SageBuilder::buildVarRefExp(var_decl_res.symbol); /// \todo multidev
+    }
     case 14:
       /// \todo size_t num_distributed_datas;
       return SageBuilder::buildIntVal(0);
@@ -721,6 +742,7 @@ unsigned readOpenaccModel(MDCG::ModelBuilder & model_builder, const std::string 
   model_builder.add(openacc_model, "loop",     libopenacc_inc_dir + "/OpenACC/private", "h");
   model_builder.add(openacc_model, "data-env", libopenacc_inc_dir + "/OpenACC/private", "h");
   model_builder.add(openacc_model, "memory",   libopenacc_inc_dir + "/OpenACC/private", "h");
+  model_builder.add(openacc_model, "runtime",  libopenacc_inc_dir + "/OpenACC/private", "h");
 
   model_builder.add(openacc_model, "openacc",  libopenacc_inc_dir + "/OpenACC", "h");
 

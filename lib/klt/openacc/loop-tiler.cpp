@@ -25,13 +25,13 @@ LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runti
         case DLX::OpenACC::language_t::e_acc_clause_gang:
         {
            tile_desc.kind = Runtime::OpenACC::e_gang_tile;
-           tile_desc.param.level = ((DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_gang> *)(it_annotation->clause))->parameters.dimension_id;
+           tile_desc.param.level = ((DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_gang> *)(it_annotation->clause))->parameters.lvl;
            break;
         }
         case DLX::OpenACC::language_t::e_acc_clause_worker:
         {
            tile_desc.kind = Runtime::OpenACC::e_worker_tile;
-           tile_desc.param.level = ((DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_worker> *)(it_annotation->clause))->parameters.dimension_id;
+           tile_desc.param.level = ((DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_worker> *)(it_annotation->clause))->parameters.lvl;
            break;
         }
         case DLX::OpenACC::language_t::e_acc_clause_vector:

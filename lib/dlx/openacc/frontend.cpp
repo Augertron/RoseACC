@@ -193,7 +193,8 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   if (!parser.parse_singleton<size_t>(clause->parameters.lvl, '[', ']'))
     clause->parameters.lvl = 0;
   assert(clause->parameters.lvl >= 0 && clause->parameters.lvl <= 2);
-  bool res = parser.parse_singleton<SgExpression *>(clause->parameters.exp, '(', ')');
+
+  bool res = parser.parse_list(clause->parameters.exp, '(', ')', ',');
   if (res) directive_str = parser.getDirectiveString();
   return res;
 }
@@ -209,7 +210,8 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   if (!parser.parse_singleton<size_t>(clause->parameters.lvl, '[', ']'))
     clause->parameters.lvl = 0;
   assert(clause->parameters.lvl >= 0 && clause->parameters.lvl <= 2);
-  bool res = parser.parse_singleton<SgExpression *>(clause->parameters.exp, '(', ')');
+
+  bool res = parser.parse_list(clause->parameters.exp, '(', ')', ',');
   if (res) directive_str = parser.getDirectiveString();
   return res;
 }
@@ -222,7 +224,7 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> * clause
 ) {
   DLX::Frontend::Parser parser(directive_str, directive_node);
-  bool res = parser.parse_singleton<SgExpression *>(clause->parameters.exp, '(', ')');
+  bool res = parser.parse_list(clause->parameters.exp, '(', ')', ',');
   if (res) directive_str = parser.getDirectiveString();
   return res;
 }
@@ -432,15 +434,15 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   SgLocatedNode * directive_node,
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_gang> * clause
 ) {
-  assert(directive_str.size() == 0 || directive_str[0] != '(');
-
-  clause->parameters.dimension_id = -1;
-  if (directive_str[0] == '[') {
-    /// \todo read number in dimension_id, find matching ']'
+  DLX::Frontend::Parser parser(directive_str, directive_node);
+  if (parser.parse_singleton<size_t>(clause->parameters.lvl, '[', ']')) {
+    assert(clause->parameters.lvl >= 0 && clause->parameters.lvl <= 2);
+    directive_str = parser.getDirectiveString();
   }
-  else clause->parameters.dimension_id = 0;
-
-  assert(clause->parameters.dimension_id != (size_t)-1);
+  else {
+    assert(directive_str.size() == 0 || directive_str[0] != '(');
+    clause->parameters.lvl = 0;
+  }
 
   return true;
 }
@@ -452,15 +454,15 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   SgLocatedNode * directive_node,
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_worker> * clause
 ) {
-  assert(directive_str.size() == 0 || directive_str[0] != '(');
-
-  clause->parameters.dimension_id = -1;
-  if (directive_str[0] == '[') {
-    /// \todo read number in dimension_id, find matching ']'
+  DLX::Frontend::Parser parser(directive_str, directive_node);
+  if (parser.parse_singleton<size_t>(clause->parameters.lvl, '[', ']')) {
+    assert(clause->parameters.lvl >= 0 && clause->parameters.lvl <= 2);
+    directive_str = parser.getDirectiveString();
   }
-  else clause->parameters.dimension_id = 0;
-
-  assert(clause->parameters.dimension_id != (size_t)-1);
+  else {
+    assert(directive_str.size() == 0 || directive_str[0] != '(');
+    clause->parameters.lvl = 0;
+  }
 
   return true;
 }
@@ -473,7 +475,7 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector> * clause
 ) {
   assert(directive_str.size() == 0 || directive_str[0] != '(');
-  return false;
+  return true;
 }
 
 template <>

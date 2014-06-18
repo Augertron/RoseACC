@@ -36,12 +36,22 @@ bool LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t::isDistri
 }
 
 template <>
-void printLoopAnnotations<DLX::KLT_Annotation<DLX::OpenACC::language_t> >(
-  LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t * loop,
+void printAnnotations<DLX::KLT_Annotation<DLX::OpenACC::language_t> >(
+  const std::vector<DLX::KLT_Annotation<DLX::OpenACC::language_t> > & annotations,
   std::ostream & out,
   std::string indent
 ) {
-  out << "acc()";
+  out << "acc(";
+  if (!annotations.empty()) { 
+    std::vector<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::const_iterator it_annotation = annotations.begin();
+    out << "";
+    it_annotation++;
+    for (; it_annotation != annotations.end(); it_annotation++) {
+      out << ", ";
+      out << "";
+    }
+  }
+  out << "), " << std::endl;
 }
 
 template <>

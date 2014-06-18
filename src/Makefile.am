@@ -6,7 +6,7 @@ CXXFLAGS=-g -O0
 roseacc_SOURCES= \
   roseacc.cpp
 roseacc_CXXFLAGS= \
-  -DLIBOPENACC_INC_PATH=\"@libopenacc_src_path@/include\" \
+  -DLIBOPENACC_PATH=\"@libopenacc_src_path@\" \
   -DOPENCL_INC_PATH=\"@opencl_path@/include\" \
   -I$(srcdir)/../include \
   -I@sqlite_path@/include \

@@ -309,15 +309,15 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
 
     SgExprStatement * init_stmt = SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
                                     SageBuilder::buildVarRefExp(it_sym_to_local->second),
-                                    SageInterface::copyExpression(loop->lower_bound)
+                                    translateConstExpression(loop->lower_bound, local_symbol_maps.iterators, local_symbol_maps.parameters)
                                   ));
-    SgExprStatement * test_stmt  = SageBuilder::buildExprStatement(SageBuilder::buildLessThanOp(
+    SgExprStatement * test_stmt  = SageBuilder::buildExprStatement(SageBuilder::buildLessOrEqualOp(
                                      SageBuilder::buildVarRefExp(it_sym_to_local->second),
-                                     SageInterface::copyExpression(loop->upper_bound))
+                                     translateConstExpression(loop->upper_bound, local_symbol_maps.iterators, local_symbol_maps.parameters))
                                    );
     SgExpression * inc_expr = SageBuilder::buildPlusAssignOp(
                                 SageBuilder::buildVarRefExp(it_sym_to_local->second),
-                                SageInterface::copyExpression(loop->stride)
+                                translateConstExpression(loop->stride, local_symbol_maps.iterators, local_symbol_maps.parameters)
                               );
     SgBasicBlock * for_body = SageBuilder::buildBasicBlock();
     SgForStatement * for_stmt = SageBuilder::buildForStatement(init_stmt, test_stmt, inc_expr, for_body);
@@ -327,7 +327,7 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
   else {
     size_t loop_id;
 
-    std::map<LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *, Runtime::OpenACC::a_loop>::const_iterator it_loop_desc = loop_descriptors_map.find(loop);
+    std::map<LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *, Runtime::OpenACC::a_loop>::iterator it_loop_desc = loop_descriptors_map.find(loop);
     if (it_loop_desc == loop_descriptors_map.end()) {
       Runtime::OpenACC::a_loop loop_desc;
         loop_desc.id = loop_cnt++;
@@ -338,12 +338,12 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
 
       loop_id = loop_desc.id;
 
-      loop_descriptors_map.insert(
+      it_loop_desc = loop_descriptors_map.insert(
           std::pair<
             LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t *,
             Runtime::OpenACC::a_loop
           >(loop, loop_desc)
-      );
+      ).first;
     }
     else
       loop_id = it_loop_desc->second.id;
@@ -360,7 +360,7 @@ std::pair<SgStatement *, std::vector<SgScopeStatement *> > generateLoops<
     ); /// acc_get_loop_lower('ctx', 'loop_id')
 
     std::vector<Runtime::OpenACC::tile_desc_t>::iterator it_tile;
-    for (it_tile = tiling.tiles.begin(); it_tile != tiling.tiles.end(); it_tile++) {
+    for (it_tile = it_loop_desc->second.tiles.begin(); it_tile != it_loop_desc->second.tiles.end(); it_tile++) {
       size_t tile_id = tile_cnt++;
       it_tile->id = tile_id;
 

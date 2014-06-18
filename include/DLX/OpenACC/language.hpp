@@ -182,20 +182,20 @@ template <>
 template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_num_gangs> {
   size_t lvl;
-  SgExpression * exp;
+  std::vector<SgExpression *> exp;
 };
 
 template <>
 template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_num_workers> {
   size_t lvl;
-  SgExpression * exp;
+  std::vector<SgExpression *> exp;
 };
 
 template <>
 template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_vector_length> {
-  SgExpression * exp;
+  std::vector<SgExpression *> exp;
 };
 
 template <>
@@ -303,15 +303,13 @@ struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::
 template <>
 template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_gang> {
-  size_t dimension_id;
-  // empty
+  size_t lvl;
 };
 
 template <>
 template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_worker> {
-  size_t dimension_id;
-  // empty
+  size_t lvl;
 };
 
 template <>

@@ -35,14 +35,35 @@ struct compiler_modules_t {
     SgFunctionSymbol * build_region;
     SgFunctionSymbol * region_execute;
 
+    SgFunctionSymbol * get_device_idx;
+
     SgFunctionSymbol * copyin;
     SgFunctionSymbol * copyout;
     SgFunctionSymbol * create;
+    SgFunctionSymbol * present;
     SgFunctionSymbol * present_or_copyin;
     SgFunctionSymbol * present_or_copyout;
     SgFunctionSymbol * present_or_create;
 
     MDCG::Model::class_t region_class;
+
+    MDCG::Model::field_t region_param_ptrs;
+    MDCG::Model::field_t region_scalar_ptrs;
+    MDCG::Model::field_t region_data_ptrs;
+    MDCG::Model::field_t region_data_size;
+    MDCG::Model::field_t region_loops;
+    MDCG::Model::field_t region_distributed_data;
+    MDCG::Model::field_t region_devices;
+
+    MDCG::Model::field_t region_loops_lower;
+    MDCG::Model::field_t region_loops_upper;
+    MDCG::Model::field_t region_loops_stride;
+
+    MDCG::Model::field_t region_devices_device_idx;
+    MDCG::Model::field_t region_devices_num_gangs;
+    MDCG::Model::field_t region_devices_num_workers;
+    MDCG::Model::field_t region_devices_vector_length;
+    
   } libopenacc_api;
 
   void loadOpenaccPrivateAPI();
@@ -52,7 +73,7 @@ struct compiler_modules_t {
     const std::string & ocl_kernels_file_,
     const std::string & kernels_desc_file_,
     const std::string & versions_db_file_,
-    const std::string & libopenacc_inc_dir,
+    const std::string & libopenacc_dir,
     const std::string & kernels_dir
   );
 };

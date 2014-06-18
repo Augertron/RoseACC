@@ -6,6 +6,11 @@
  *
  */
 
+#include "sage3basic.h"
+
+#include "MFB/Sage/driver.hpp"
+#include "MFB/Sage/class-declaration.hpp"
+
 #include "DLX/Core/compiler.hpp"
 #include "DLX/OpenACC/language.hpp"
 #include "DLX/OpenACC/compiler.hpp"
@@ -29,7 +34,7 @@ compiler_modules_t::compiler_modules_t(
   const std::string & ocl_kernels_file_,
   const std::string & kernels_desc_file_,
   const std::string & versions_db_file_,
-  const std::string & libopenacc_inc_dir,
+  const std::string & libopenacc_dir,
   const std::string & kernels_dir
 ) :
   driver(project),
@@ -52,7 +57,7 @@ compiler_modules_t::compiler_modules_t(
   host_data_file_id = driver.add(boost::filesystem::path(kernels_desc_file_));
     driver.setUnparsedFile(host_data_file_id);
 
-  libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, libopenacc_inc_dir);
+  libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, libopenacc_dir + "/include");
 
   // Get base class for host data generation
   std::set<MDCG::Model::class_t> classes;
@@ -60,7 +65,7 @@ compiler_modules_t::compiler_modules_t(
   assert(classes.size() == 1);
   compiler_data_class = *(classes.begin());
 
-  comp_data.runtime_dir = SageBuilder::buildStringVal(libopenacc_inc_dir);
+  comp_data.runtime_dir = SageBuilder::buildStringVal(libopenacc_dir);
   comp_data.ocl_runtime = SageBuilder::buildStringVal("lib/opencl/libopenacc.cl");
   comp_data.kernels_dir = SageBuilder::buildStringVal(kernels_dir);
 
@@ -91,6 +96,10 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   libopenacc_api.region_execute = func->node->symbol;
   assert(libopenacc_api.region_execute != NULL);
 
+  func = model.lookup<MDCG::Model::function_t>("acc_get_device_idx");
+  libopenacc_api.get_device_idx = func->node->symbol;
+  assert(libopenacc_api.get_device_idx != NULL);
+
   func = model.lookup<MDCG::Model::function_t>("acc_copyin_regions_");
   libopenacc_api.copyin= func->node->symbol;
   assert(libopenacc_api.copyin!= NULL);
@@ -119,6 +128,45 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   model_builder.get(libopenacc_model).lookup<MDCG::Model::class_t>("acc_region_t_", classes);
   assert(classes.size() == 1);
   libopenacc_api.region_class = *(classes.begin());
+
+  assert(libopenacc_api.region_class->scope->field_children.size() == 9);
+
+  libopenacc_api.region_param_ptrs = libopenacc_api.region_class->scope->field_children[1];
+  libopenacc_api.region_scalar_ptrs = libopenacc_api.region_class->scope->field_children[2];
+  libopenacc_api.region_data_ptrs = libopenacc_api.region_class->scope->field_children[3];
+  libopenacc_api.region_data_size = libopenacc_api.region_class->scope->field_children[4];
+  libopenacc_api.region_loops = libopenacc_api.region_class->scope->field_children[5];
+  libopenacc_api.region_distributed_data = libopenacc_api.region_class->scope->field_children[6];
+  libopenacc_api.region_devices = libopenacc_api.region_class->scope->field_children[8];
+
+  assert(libopenacc_api.region_loops->node->type != NULL);
+  assert(libopenacc_api.region_loops->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+  assert(libopenacc_api.region_loops->node->type->node->base_type != NULL);
+  assert(libopenacc_api.region_loops->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+  MDCG::Model::class_t loops = libopenacc_api.region_loops->node->type->node->base_type->node->base_class;
+  assert(loops != NULL);
+  assert(loops->node->symbol->get_name().getString() == "acc_loop_t_");
+
+  assert(loops->scope->field_children.size() == 3);
+
+  libopenacc_api.region_loops_lower  = loops->scope->field_children[0];
+  libopenacc_api.region_loops_upper  = loops->scope->field_children[1];
+  libopenacc_api.region_loops_stride = loops->scope->field_children[2];
+
+  assert(libopenacc_api.region_devices->node->type != NULL);
+  assert(libopenacc_api.region_devices->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_array_type);
+  assert(libopenacc_api.region_devices->node->type->node->base_type != NULL);
+  assert(libopenacc_api.region_devices->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+  MDCG::Model::class_t region_per_device = libopenacc_api.region_devices->node->type->node->base_type->node->base_class;
+  assert(region_per_device != NULL);
+  assert(region_per_device->node->symbol->get_name().getString() == "acc_region_per_device_t_");
+
+  assert(region_per_device->scope->field_children.size() == 4);
+
+  libopenacc_api.region_devices_device_idx = region_per_device->scope->field_children[0];
+  libopenacc_api.region_devices_num_gangs = region_per_device->scope->field_children[1];
+  libopenacc_api.region_devices_num_workers = region_per_device->scope->field_children[2];
+  libopenacc_api.region_devices_vector_length = region_per_device->scope->field_children[3];
 }
 
 }
@@ -172,45 +220,11 @@ void interpretClauses(
   const std::vector<Directives::generic_clause_t<OpenACC::language_t> *> & clauses,
   LoopTrees * loop_tree
 ) {
+  assert(clauses.size() > 0);
+
   std::vector<Directives::generic_clause_t<OpenACC::language_t> *>::const_iterator it_clause;
   for (it_clause = clauses.begin(); it_clause != clauses.end(); it_clause++) {
     switch ((*it_clause)->kind) {
-      case OpenACC::language_t::e_acc_clause_if:
-      {
-        assert(false); /// \todo
-        break;
-      }
-      case OpenACC::language_t::e_acc_clause_async:
-      {
-        assert(false); /// \todo
-        break;
-      }
-      case OpenACC::language_t::e_acc_clause_num_gangs:
-      {
-        Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> * clause =
-                 (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> *)(*it_clause);
-        loop_tree->setNumGangs(clause->parameters.lvl, clause->parameters.exp);
-        break;
-      }
-      case OpenACC::language_t::e_acc_clause_num_workers:
-      {
-        Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> * clause =
-                 (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> *)(*it_clause);
-        loop_tree->setNumWorkers(clause->parameters.lvl, clause->parameters.exp);
-        break;
-      }
-      case OpenACC::language_t::e_acc_clause_vector_length:
-      {
-        Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> * clause =
-                 (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> *)(*it_clause);
-        loop_tree->setVectorLength(clause->parameters.exp);
-        break;
-      }
-      case OpenACC::language_t::e_acc_clause_reduction:
-      {
-        assert(false); /// \todo
-        break;
-      }
       case OpenACC::language_t::e_acc_clause_copy:
       {
         Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_copy> * clause =
@@ -274,6 +288,21 @@ void interpretClauses(
         translateDataSections(clause->parameters.data_sections, clause, loop_tree);
         break;
       }
+      case OpenACC::language_t::e_acc_clause_if:
+      {
+        assert(false); /// \todo
+        break;
+      }
+      case OpenACC::language_t::e_acc_clause_async:
+      {
+        assert(false); /// \todo
+        break;
+      }
+      case OpenACC::language_t::e_acc_clause_reduction:
+      {
+        assert(false); /// \todo
+        break;
+      }
       case OpenACC::language_t::e_acc_clause_deviceptr:
       {
         assert(false); /// \todo
@@ -287,6 +316,14 @@ void interpretClauses(
       case OpenACC::language_t::e_acc_clause_firstprivate:
       {
         assert(false); /// \todo
+        break;
+      }
+      case OpenACC::language_t::e_acc_clause_devices:
+      case OpenACC::language_t::e_acc_clause_num_gangs:
+      case OpenACC::language_t::e_acc_clause_num_workers:
+      case OpenACC::language_t::e_acc_clause_vector_length:
+      {
+        loop_tree->annotations.push_back(KLT_Annotation<OpenACC::language_t>(*it_clause));
         break;
       }
       default:
@@ -423,6 +460,9 @@ void extractLoopTrees(
   std::vector<Directives::directive_t<OpenACC::language_t> *>::const_iterator it_directive;
   for (it_directive = directives.begin(); it_directive != directives.end(); it_directive++) {
     Directives::directive_t<OpenACC::language_t> * directive = *it_directive;
+
+    assert(!directive->clause_list.empty());
+
     switch (directive->construct->kind) {
       case OpenACC::language_t::e_acc_construct_parallel:
       {
@@ -467,8 +507,6 @@ void extractLoopTrees(
           if (std::find(params.begin(), params.end(), *it_other) == params.end() && std::find(datas.begin(), datas.end(), *it_other) == datas.end())
             loop_tree->addScalar(*it_other); // Neither iterators or parameters or data
 
-        loop_tree->toText(std::cout);
-
         break;
       }
       case OpenACC::language_t::e_acc_construct_kernel:
@@ -489,8 +527,199 @@ void extractLoopTrees(
   }
 }
 
-SgBasicBlock * buildRegionBlock(LoopTrees * loop_trees, const DLX::OpenACC::compiler_modules_t::libopenacc_api_t & libopenacc_api) {
+struct device_config_t {
+  SgExpression * device_kind;
+  SgExpression * device_num;
+
+  SgExpression * num_gangs[3];
+  SgExpression * num_workers[3];
+  SgExpression * vector_length;
+};
+
+bool getDevicesConfig(LoopTrees * loop_trees, std::vector<struct device_config_t> & device_configs) {
+
+  assert(device_configs.size() == 0);
+
+  Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> * num_gangs[3] = {NULL, NULL, NULL};
+  Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> * num_workers[3] = {NULL, NULL, NULL};
+  Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> * vector_length = NULL;
+  Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_devices> * devices = NULL;
+
+  std::vector<KLT_Annotation<DLX::OpenACC::language_t> >::const_iterator it_annotation;
+  for (it_annotation = loop_trees->annotations.begin(); it_annotation != loop_trees->annotations.end(); it_annotation++) {
+    switch (it_annotation->clause->kind) {
+      case OpenACC::language_t::e_acc_clause_num_gangs:
+      {
+        Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> * tmp = (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> * )it_annotation->clause;
+        assert(tmp->parameters.lvl >= 0 && tmp->parameters.lvl <= 2);
+        assert(num_gangs[tmp->parameters.lvl] == NULL);
+        num_gangs[tmp->parameters.lvl] = tmp;
+        break;
+      }
+      case OpenACC::language_t::e_acc_clause_num_workers:
+      {
+        Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> * tmp = (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> * )it_annotation->clause;
+        assert(tmp->parameters.lvl >= 0 && tmp->parameters.lvl <= 2);
+        assert(num_workers[tmp->parameters.lvl] == NULL);
+        num_workers[tmp->parameters.lvl] = tmp;
+        break;
+      }
+      case OpenACC::language_t::e_acc_clause_vector_length:
+        assert(vector_length == NULL);
+        vector_length = (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> *)it_annotation->clause;
+        break;
+      case OpenACC::language_t::e_acc_clause_devices:
+        assert(devices == NULL);
+        devices = (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_devices> *)it_annotation->clause;
+        break;
+    }
+  }
+
+  assert(num_gangs[2] == 0 || (num_gangs[0] != NULL && num_gangs[1] != NULL));       //    num_gangs[2]  => num_gangs[0] && num_gangs[1]
+  assert(num_gangs[1] == 0 || num_gangs[0] != NULL);                                 //    num_gangs[1]  => num_gangs[0]
+
+  assert(num_workers[2] == 0 || (num_workers[0] != NULL && num_workers[1] != NULL)); //  num_workers[2]  => num_workers[0] && num_workers[1]
+  assert(num_workers[1] == 0 || num_workers[0] != NULL);                             //  num_workers[1]  => num_workers[0]
+
+  if (devices != NULL) {
+    assert(false); /// \todo multidev
+  }
+  else {
+    device_configs.resize(1);
+
+    device_configs[0].device_kind = NULL;
+    device_configs[0].device_num = NULL;
+
+    if (num_gangs[0] != NULL) {
+      assert(num_gangs[0]->parameters.exp.size() == 1);
+      device_configs[0].num_gangs[0] = num_gangs[0]->parameters.exp[0];
+    }
+    else device_configs[0].num_gangs[0] = SageBuilder::buildIntVal(0);
+
+    if (num_gangs[1] != NULL) {
+      assert(num_gangs[1]->parameters.exp.size() == 1);
+      device_configs[0].num_gangs[1] = num_gangs[1]->parameters.exp[0];
+    }
+    else device_configs[0].num_gangs[1] = SageBuilder::buildIntVal(0);
+
+    if (num_gangs[2] != NULL) {
+      assert(num_gangs[2]->parameters.exp.size() == 1);
+      device_configs[0].num_gangs[2] = num_gangs[2]->parameters.exp[0];
+    }
+    else device_configs[0].num_gangs[2] = SageBuilder::buildIntVal(0);
+
+    if (num_workers[0] != NULL) {
+      assert(num_workers[0]->parameters.exp.size() == 1);
+      device_configs[0].num_workers[0] = num_workers[0]->parameters.exp[0];
+    }
+    else device_configs[0].num_workers[0] = SageBuilder::buildIntVal(0);
+
+    if (num_workers[1] != NULL) {
+      assert(num_workers[1]->parameters.exp.size() == 1);
+      device_configs[0].num_workers[1] = num_workers[1]->parameters.exp[0];
+    }
+    else device_configs[0].num_workers[1] = SageBuilder::buildIntVal(0);
+
+    if (num_workers[2] != NULL) {
+      assert(num_workers[2]->parameters.exp.size() == 1);
+      device_configs[0].num_workers[2] = num_workers[2]->parameters.exp[0];
+    }
+    else device_configs[0].num_workers[2] = SageBuilder::buildIntVal(0);
+
+    if (vector_length != NULL) {
+      assert(vector_length->parameters.exp.size() == 1);
+      device_configs[0].vector_length = vector_length->parameters.exp[0];
+    }
+    else device_configs[0].vector_length = SageBuilder::buildIntVal(0);
+
+  }
+
+  return true;
+}
+
+void genLoopConfig(
+  LoopTrees::node_t * node,
+  const DLX::OpenACC::compiler_modules_t::libopenacc_api_t & libopenacc_api,
+  MFB::KLT_Driver & driver,
+  SgScopeStatement * scope,
+  size_t & loop_cnt,
+  SgVariableSymbol * region_sym
+) {
+  LoopTrees::loop_t  * loop  = dynamic_cast<LoopTrees::loop_t  *>(node);
+  LoopTrees::cond_t  * cond  = dynamic_cast<LoopTrees::cond_t  *>(node);
+  LoopTrees::block_t * block = dynamic_cast<LoopTrees::block_t *>(node);
+  LoopTrees::stmt_t  * stmt  = dynamic_cast<LoopTrees::stmt_t  *>(node);
+
+  if (loop != NULL) {
+    // loop_ref_exp : region->loops['loop_cnt']
+    SgExpression * loop_ref_exp = SageBuilder::buildPntrArrRefExp(
+      SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_loops->node->symbol)),
+      SageBuilder::buildIntVal(loop_cnt)
+    );
+    // region->loops['loop_cnt'].lower = 'loop->lower_bound'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(
+        SageInterface::copyExpression(loop_ref_exp),
+        SageBuilder::buildVarRefExp(libopenacc_api.region_loops_lower->node->symbol)
+      ),
+      SageInterface::copyExpression(loop->lower_bound)
+    )), scope);
+    // region->loops['loop_cnt'].upper = 'loop->upper_bound'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(
+        SageInterface::copyExpression(loop_ref_exp),
+        SageBuilder::buildVarRefExp(libopenacc_api.region_loops_upper->node->symbol)
+      ),
+      SageInterface::copyExpression(loop->upper_bound)
+    )), scope);
+    // region->loops['loop_cnt'].stride = 'loop->stride'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(
+        loop_ref_exp,
+        SageBuilder::buildVarRefExp(libopenacc_api.region_loops_stride->node->symbol)
+      ),
+      SageInterface::copyExpression(loop->stride)
+    )), scope);
+
+    loop_cnt++;
+    genLoopConfig(loop->block, libopenacc_api, driver, scope, loop_cnt, region_sym);
+  }
+  else if (cond != NULL) {
+    genLoopConfig(cond->block_true,  libopenacc_api, driver, scope, loop_cnt, region_sym);
+    genLoopConfig(cond->block_false, libopenacc_api, driver, scope, loop_cnt, region_sym);
+  }
+  else if (block != NULL) {
+    std::vector<LoopTrees::node_t *>::const_iterator it_block;
+    for (it_block = block->children.begin(); it_block != block->children.end(); it_block++)
+      genLoopConfig(*it_block, libopenacc_api, driver, scope, loop_cnt, region_sym);
+  }
+  else assert(stmt != NULL);
+}
+
+SgBasicBlock * buildRegionBlock(
+  LoopTrees * loop_trees,
+  const DLX::OpenACC::compiler_modules_t::libopenacc_api_t & libopenacc_api,
+  MFB::KLT_Driver & driver,
+  SgScopeStatement * scope
+) {
   SgBasicBlock * result = SageBuilder::buildBasicBlock();
+
+  // Import symbols in to be used in this file
+
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.push_data_environment, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.pop_data_environment, scope);
+
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.build_region, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.region_execute, scope);
+
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyin, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyout, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.create, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyin, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyout, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_create, scope);
+
+  driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_class->node->symbol, scope);
 
   // build decl : acc_region_t region = acc_build_region(0);
 
@@ -507,19 +736,271 @@ SgBasicBlock * buildRegionBlock(LoopTrees * loop_trees, const DLX::OpenACC::comp
   SgVariableSymbol * region_sym = SageInterface::getFirstVarSym(region_decl);
   assert(region_sym != NULL);
 
-    // set gang/worker/vector info
-    // set data info
-    // set loop info
+  std::vector<SgVariableSymbol *>::const_iterator it_var_sym;
 
-  // build call : acc_push_data_environment();
+  const std::vector<SgVariableSymbol *> & params = loop_trees->getParameters();
+  size_t param_cnt = 0;
+  for (it_var_sym = params.begin(); it_var_sym != params.end(); it_var_sym++) {
+    // param_ptrs_ref_exp : region->param_ptrs
+    SgExpression * param_ptrs_ref_exp = SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_param_ptrs->node->symbol));
+    // region->param_ptrs['param_cnt'] = &('*it_var_sym')
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(param_ptrs_ref_exp, SageBuilder::buildIntVal(param_cnt++)),
+      SageBuilder::buildAddressOfOp(SageBuilder::buildVarRefExp(*it_var_sym))
+    )), result);
+  }
+
+
+  const std::vector<SgVariableSymbol *> & scalars = loop_trees->getScalars();
+  size_t scalar_cnt = 0;
+  for (it_var_sym = scalars.begin(); it_var_sym != scalars.end(); it_var_sym++) {
+    // scalar_ptrs_ref_exp : region->scalar_ptrs
+    SgExpression * scalar_ptrs_ref_exp = SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_scalar_ptrs->node->symbol));
+    // region->scalar_ptrs['scalar_cnt'] = &('*it_var_sym')
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(scalar_ptrs_ref_exp, SageBuilder::buildIntVal(scalar_cnt++)),
+      SageBuilder::buildAddressOfOp(SageBuilder::buildVarRefExp(*it_var_sym))
+    )), result);
+  }
+
+  std::vector< ::KLT::Data<KLT_Annotation<OpenACC::language_t> > *>::const_iterator it_data;
+  size_t data_cnt = 0;
+  const std::vector< ::KLT::Data<KLT_Annotation<OpenACC::language_t> > *> & datas = loop_trees->getDatas();
+  for (it_data = datas.begin(); it_data != datas.end(); it_data++) {
+    // data_ptrs_ref_exp : region->data_ptrs
+    SgExpression * data_ptrs_ref_exp = SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_data_ptrs->node->symbol));
+
+    // array_ref_exp : ref on base data (go down the dimension for multidimensionnal arrays)
+    SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
+    for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+      array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
+    array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp); /// \todo not VALID with sections not starting at zero ?????
+
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(data_ptrs_ref_exp, SageBuilder::buildIntVal(data_cnt)), array_ref_exp
+    )), result);
+
+    // data_size_ref_exp : region->data_sze
+    SgExpression * data_size_ref_exp = SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_data_size->node->symbol));
+
+    // array_size_exp : Number of data elements
+    SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
+    for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+      array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(data_size_ref_exp, SageBuilder::buildIntVal(data_cnt)), array_size_exp
+    )), result);
+
+    data_cnt++;
+  }
+
+  const std::vector<LoopTrees::node_t *> & trees = loop_trees->getTrees();
+  std::vector<LoopTrees::node_t *>::const_iterator it_tree;
+  size_t loop_cnt = 0;
+  for (it_tree = trees.begin(); it_tree != trees.end(); it_tree++)
+    genLoopConfig(*it_tree, libopenacc_api, driver, result, loop_cnt, region_sym);
+
+  std::vector<struct device_config_t> device_configs;
+  assert(getDevicesConfig(loop_trees, device_configs));
+  std::vector<struct device_config_t>::const_iterator it_config;
+  size_t device_cnt = 0;
+  for (it_config = device_configs.begin(); it_config != device_configs.end(); it_config++) {
+
+    // device_ref_exp : region->devices['device_cnt++']
+    SgExpression * device_ref_exp = SageBuilder::buildPntrArrRefExp(
+      SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_devices->node->symbol)),
+      SageBuilder::buildIntVal(device_cnt++)
+    );
+
+    // region->devices['device_idx'].device_idx = 'device_idx';
+    if (it_config->device_kind != NULL) {
+      assert(it_config->device_num != NULL);
+      SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+        SageBuilder::buildDotExp(SageInterface::copyExpression(device_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_devices_device_idx->node->symbol)),
+        SageBuilder::buildFunctionCallExp(
+          SageBuilder::buildFunctionRefExp(libopenacc_api.get_device_idx),
+          SageBuilder::buildExprListExp(SageInterface::copyExpression(it_config->device_kind), SageInterface::copyExpression(it_config->device_num))
+        )
+      )), result);
+    }
+
+    // gang_ref_exp : region->devices['device_idx'].num_gangs
+    SgExpression * gang_ref_exp = SageBuilder::buildDotExp(
+      SageInterface::copyExpression(device_ref_exp),
+      SageBuilder::buildVarRefExp(libopenacc_api.region_devices_num_gangs->node->symbol)
+    );
+    // region->devices['device_idx'].num_gangs[0] = 'loop_trees->p_num_gangs[0]'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(gang_ref_exp), SageBuilder::buildIntVal(0)),
+      SageInterface::copyExpression(it_config->num_gangs[0])
+    )), result);
+    // region->devices['device_idx'].num_gangs[1] = 'loop_trees->p_num_gangs[1]'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(gang_ref_exp), SageBuilder::buildIntVal(1)),
+      SageInterface::copyExpression(it_config->num_gangs[1])
+    )), result);
+    // region->devices['device_idx'].num_gangs[2] = 'loop_trees->p_num_gangs[2]'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(gang_ref_exp, SageBuilder::buildIntVal(2)),
+      SageInterface::copyExpression(it_config->num_gangs[2])
+    )), result);
+
+    // worker_ref_exp : region->devices['device_idx'].num_workers
+    SgExpression * worker_ref_exp = SageBuilder::buildDotExp(
+      SageInterface::copyExpression(device_ref_exp),
+      SageBuilder::buildVarRefExp(libopenacc_api.region_devices_num_workers->node->symbol)
+    );
+    // region->devices['device_idx'].num_workers[0] = 'loop_trees->p_num_workers[0]'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(worker_ref_exp), SageBuilder::buildIntVal(0)),
+      SageInterface::copyExpression(it_config->num_workers[0])
+    )), result);
+    // region->devices['device_idx'].num_workers[1] = 'loop_trees->p_num_workers[1]'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(worker_ref_exp), SageBuilder::buildIntVal(1)),
+      SageInterface::copyExpression(it_config->num_workers[1])
+    )), result);
+    // region->devices['device_idx'].num_workers[2] = 'loop_trees->p_num_workers[2]'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildPntrArrRefExp(worker_ref_exp, SageBuilder::buildIntVal(2)),
+      SageInterface::copyExpression(it_config->num_workers[2])
+    )), result);
+
+    // region->devices['device_idx'].vector_length = 'loop_trees->p_vector_length';
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(device_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_devices_vector_length->node->symbol)),
+      SageInterface::copyExpression(it_config->vector_length)
+    )), result);
+  }
+
+  // build call : acc_push_data_environment(); /// \todo ? region specific call (create one data env per device)
+
+  SgExprStatement * push_dataenv_call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(libopenacc_api.push_data_environment), SageBuilder::buildExprListExp()
+  ));
+  SageInterface::appendStatement(push_dataenv_call, result);
 
   // data : copyin / create
 
+  for (it_data = datas.begin(); it_data != datas.end(); it_data++) {
+    SgFunctionSymbol * func_to_call = NULL;
+    std::vector<Annotation>::const_iterator it_annotation;
+    for (it_annotation = (*it_data)->annotations.begin(); it_annotation != (*it_data)->annotations.end(); it_annotation++) {
+      switch (it_annotation->clause->kind) {
+        case OpenACC::language_t::e_acc_clause_copy:
+        case OpenACC::language_t::e_acc_clause_copyin:
+          assert(func_to_call == NULL);
+          func_to_call = libopenacc_api.copyin;
+          break;
+        case OpenACC::language_t::e_acc_clause_copyout:
+        case OpenACC::language_t::e_acc_clause_create:
+          assert(func_to_call == NULL);
+          func_to_call = libopenacc_api.create;
+          break;
+        case OpenACC::language_t::e_acc_clause_present:
+          assert(func_to_call == NULL);
+          func_to_call = libopenacc_api.present;
+          break;
+        case OpenACC::language_t::e_acc_clause_present_or_copy:
+        case OpenACC::language_t::e_acc_clause_present_or_copyin:
+          assert(func_to_call == NULL);
+          func_to_call = libopenacc_api.present_or_copyin;
+          break;
+        case OpenACC::language_t::e_acc_clause_present_or_create:
+        case OpenACC::language_t::e_acc_clause_present_or_copyout:
+          assert(func_to_call == NULL);
+          func_to_call = libopenacc_api.present_or_create;
+          break;
+        default:
+          assert(false);
+      }
+    }
+
+    assert(func_to_call != NULL);
+
+    SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
+    for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+      array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
+    array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp);
+    SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
+    for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+      array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+
+    SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(func_to_call),
+      SageBuilder::buildExprListExp(
+        SageBuilder::buildVarRefExp(region_sym),
+        array_ref_exp,
+        SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()))
+      )
+    ));
+    SageInterface::appendStatement(call, result);
+  }
+
   // build call : acc_region_execute(region);
+
+  SgExprStatement * region_exec_call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(libopenacc_api.region_execute),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(region_sym))
+  ));
+  SageInterface::appendStatement(region_exec_call, result);
 
   // data : copyout
 
+  for (it_data = datas.begin(); it_data != datas.end(); it_data++) {
+    SgFunctionSymbol * func_to_call = NULL;
+    std::vector<Annotation>::const_iterator it_annotation;
+    for (it_annotation = (*it_data)->annotations.begin(); it_annotation != (*it_data)->annotations.end(); it_annotation++) {
+      switch (it_annotation->clause->kind) {
+        case OpenACC::language_t::e_acc_clause_copy:
+        case OpenACC::language_t::e_acc_clause_copyout:
+          assert(func_to_call == NULL);
+          func_to_call = libopenacc_api.copyout;
+          break;
+        case OpenACC::language_t::e_acc_clause_present_or_copy:
+        case OpenACC::language_t::e_acc_clause_present_or_copyout:
+          assert(func_to_call == NULL);
+          func_to_call = libopenacc_api.present_or_copyout;
+          break;
+        case OpenACC::language_t::e_acc_clause_copyin:
+        case OpenACC::language_t::e_acc_clause_create:
+        case OpenACC::language_t::e_acc_clause_present:
+        case OpenACC::language_t::e_acc_clause_present_or_copyin:
+        case OpenACC::language_t::e_acc_clause_present_or_create:
+          break;
+        default:
+          assert(false);
+      }
+    }
+
+    if (func_to_call == NULL) continue;
+
+    SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
+    for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+      array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
+    array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp);
+    SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
+    for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+      array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+
+    SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(func_to_call),
+      SageBuilder::buildExprListExp(
+        SageBuilder::buildVarRefExp(region_sym),
+        array_ref_exp,
+        SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()))
+      )
+    ));
+    SageInterface::appendStatement(call, result);
+  }
+
   // build call : acc_pop_data_environment();
+
+  SgExprStatement * pop_dataenv_call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(libopenacc_api.pop_data_environment), SageBuilder::buildExprListExp()
+  ));
+  SageInterface::appendStatement(pop_dataenv_call, result);
 
   return result;
 }
@@ -560,6 +1041,8 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
       input_region.file = compiler_modules.ocl_kernels_file;
       input_region.loop_tree = it_region->second;
 
+    input_region.loop_tree->toText(std::cout);
+
     compiler_modules.generator.generate(*(it_region->second), input_region.kernel_lists, compiler_modules.cg_config);
 
     compiler_modules.comp_data.regions.push_back(input_region);
@@ -572,18 +1055,12 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
 
   /// Transforms parallel/kernel directives
   for (it_region = regions.begin(); it_region != regions.end(); it_region++) {
-    SgBasicBlock * region_block = buildRegionBlock(it_region->second, compiler_modules.libopenacc_api);
 
     SgStatement * old_region = NULL;
-
-    if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_parallel) {
+    if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_parallel)
       old_region = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(it_region->first->construct))->assoc_nodes.parallel_region;
-      ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(it_region->first->construct))->assoc_nodes.parallel_region = region_block;
-    }
-    else if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_kernel) {
+    else if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_kernel)
       old_region = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(it_region->first->construct))->assoc_nodes.kernel_region;
-      ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(it_region->first->construct))->assoc_nodes.kernel_region = region_block;
-    }
     assert(old_region != NULL);
 
     if (isSgPragmaDeclaration(old_region)) {
@@ -592,6 +1069,18 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
       assert(child->construct->kind == OpenACC::language_t::e_acc_construct_loop);
       old_region = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_loop> *)child->construct)->assoc_nodes.for_loop;
     }
+
+    SgBasicBlock * region_block = buildRegionBlock(
+                                    it_region->second,
+                                    compiler_modules.libopenacc_api,
+                                    compiler_modules.driver,
+                                    SageInterface::getScope(old_region)
+                                  );
+
+    if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_parallel)
+      ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(it_region->first->construct))->assoc_nodes.parallel_region = region_block;
+    else if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_kernel)
+      ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(it_region->first->construct))->assoc_nodes.kernel_region = region_block;
 
     SageInterface::replaceStatement(old_region, region_block);
   }

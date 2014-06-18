@@ -41,19 +41,22 @@ void KLT_Annotation<OpenACC::language_t>::parseRegion(std::vector<DLX::KLT_Annot
       break;
     case OpenACC::language_t::e_acc_clause_num_gangs:
       KLT::ensure('(');
-      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> *)annotation.clause)->parameters.exp
+      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> *)annotation.clause)->parameters.exp.resize(1);
+      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_gangs> *)annotation.clause)->parameters.exp[0]
                 = parseExpressionOrLabel();
       KLT::ensure(')');
       break;
     case OpenACC::language_t::e_acc_clause_num_workers:
       KLT::ensure('(');
-      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> *)annotation.clause)->parameters.exp
+      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> *)annotation.clause)->parameters.exp.resize(1);
+      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_num_workers> *)annotation.clause)->parameters.exp[0]
                 = parseExpressionOrLabel();
       KLT::ensure(')');
       break;
     case OpenACC::language_t::e_acc_clause_vector_length:
       KLT::ensure('(');
-      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> *)annotation.clause)->parameters.exp
+      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> *)annotation.clause)->parameters.exp.resize(1);
+      ((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_vector_length> *)annotation.clause)->parameters.exp[0]
                 = parseExpressionOrLabel();
       KLT::ensure(')');
       break;
@@ -98,7 +101,7 @@ void KLT_Annotation<OpenACC::language_t>::parseLoop(std::vector<DLX::KLT_Annotat
     case OpenACC::language_t::e_acc_clause_gang:
     case OpenACC::language_t::e_acc_clause_worker:
     case OpenACC::language_t::e_acc_clause_vector:
-      /// \todo 'dimension_id' and expression parameter
+      /// \todo 'lvl' and expression parameter
     case OpenACC::language_t::e_acc_clause_auto:
     case OpenACC::language_t::e_acc_clause_seq:
     case OpenACC::language_t::e_acc_clause_independent:
