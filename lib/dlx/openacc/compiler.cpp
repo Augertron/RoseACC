@@ -54,8 +54,9 @@ compiler_modules_t::compiler_modules_t(
   comp_data(),
   libopenacc_api()
 {
-  host_data_file_id = driver.add(boost::filesystem::path(kernels_desc_file_));
+  host_data_file_id = driver.create(boost::filesystem::path(kernels_desc_file_));
     driver.setUnparsedFile(host_data_file_id);
+    driver.setCompiledFile(host_data_file_id);
 
   libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, libopenacc_dir + "/include");
 
