@@ -1042,7 +1042,7 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
       input_region.file = compiler_modules.ocl_kernels_file;
       input_region.loop_tree = it_region->second;
 
-    input_region.loop_tree->toText(std::cout);
+//  input_region.loop_tree->toText(std::cout);
 
     compiler_modules.generator.generate(*(it_region->second), input_region.kernel_lists, compiler_modules.cg_config);
 

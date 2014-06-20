@@ -70,8 +70,6 @@ int main(int argc, char ** argv) {
     cg_prefix = cg_prefix.substr(0, dot_pos);
   }
 
-  std::cout << "cg_prefix = " << cg_prefix << std::endl;
-
   assert(!cg_prefix.empty());
 
   ocl_kernels_file = cg_prefix + ocl_kernels_file;
@@ -83,7 +81,7 @@ int main(int argc, char ** argv) {
 
   DLX::Frontend::Frontend<DLX::OpenACC::language_t> frontend;
   assert(frontend.parseDirectives(project));
-  frontend.toDot(std::cout);
+//frontend.toDot(std::cout);
 
   std::string libopenacc_dir(LIBOPENACC_PATH);
   std::string kernels_dir(boost::filesystem::current_path().string());
