@@ -553,9 +553,21 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   SgLocatedNode * directive_node,
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_split> * clause
 ) {
-  /// \todo
-  assert(false);
-  return false;
+  DLX::Frontend::Parser parser(directive_str, directive_node);
+  assert(parser.consume('('));
+  parser.skip_whitespace();
+  if (parser.consume("contiguous"))
+    clause->parameters.kind = Directives::generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_split>::e_acc_split_contiguous;
+  else if (parser.consume("chunk"))
+    clause->parameters.kind = Directives::generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_split>::e_acc_split_chunk;
+  else assert(false);
+  assert(parser.consume(','));
+  parser.skip_whitespace();
+  assert(parser.parse_list<SgExpression *>(clause->parameters.portions, '\0', '\0', ','));
+  parser.skip_whitespace();
+  assert(parser.consume(')'));
+  directive_str = parser.getDirectiveString();
+  return true;
 }
 
 template <>
@@ -565,9 +577,11 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   SgLocatedNode * directive_node,
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_devices> * clause
 ) {
-  /// \todo
-  assert(false);
-  return false;
+  DLX::Frontend::Parser parser(directive_str, directive_node);
+  bool res = parser.parse_list<std::pair<SgExpression *, SgExpression *> >(clause->parameters.device_list, '(', ')', ',');
+  assert(res);
+  directive_str = parser.getDirectiveString();
+  return true;
 }
 
 #endif

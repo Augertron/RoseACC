@@ -75,17 +75,16 @@ int main(int argc, char ** argv) {
   ocl_kernels_file = cg_prefix + ocl_kernels_file;
   kernels_desc_file = cg_prefix + kernels_desc_file;
   versions_db_file = cg_prefix + versions_db_file;
+  std::string libopenacc_dir(LIBOPENACC_PATH);
+  std::string kernels_dir(boost::filesystem::current_path().string());
 
-  // Initialize DLX for OpenACC
-  DLX::OpenACC::language_t::init(); 
+  // Initialize OpenACC language and build compiler module (loads OpenACC API)
+  DLX::OpenACC::language_t::init();
+  DLX::OpenACC::compiler_modules_t compiler_modules(project, ocl_kernels_file, kernels_desc_file, versions_db_file, libopenacc_dir, kernels_dir);
 
   DLX::Frontend::Frontend<DLX::OpenACC::language_t> frontend;
   assert(frontend.parseDirectives(project));
 //frontend.toDot(std::cout);
-
-  std::string libopenacc_dir(LIBOPENACC_PATH);
-  std::string kernels_dir(boost::filesystem::current_path().string());
-  DLX::OpenACC::compiler_modules_t compiler_modules(project, ocl_kernels_file, kernels_desc_file, versions_db_file, libopenacc_dir, kernels_dir);
 
   DLX::Compiler::Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t> compiler(compiler_modules);
   assert(compiler.compile(frontend.directives, frontend.graph_entry, frontend.graph_final));

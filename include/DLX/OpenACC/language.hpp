@@ -359,8 +359,7 @@ template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_split> {
   enum {
     e_acc_split_contiguous,
-    e_acc_split_chunk,
-    e_acc_split_unknown
+    e_acc_split_chunk
   } kind;
   std::vector<SgExpression *> portions;
 };

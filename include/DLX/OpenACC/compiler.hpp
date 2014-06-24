@@ -49,11 +49,16 @@ struct compiler_modules_t {
 
     MDCG::Model::field_t region_param_ptrs;
     MDCG::Model::field_t region_scalar_ptrs;
-    MDCG::Model::field_t region_data_ptrs;
-    MDCG::Model::field_t region_data_size;
+    MDCG::Model::field_t region_data;
     MDCG::Model::field_t region_loops;
     MDCG::Model::field_t region_distributed_data;
     MDCG::Model::field_t region_devices;
+
+    MDCG::Model::field_t region_data_ptr;
+    MDCG::Model::field_t region_data_nbr_elements;
+    MDCG::Model::field_t region_data_element_size;
+    MDCG::Model::field_t region_data_dominant_dimension;
+    MDCG::Model::field_t region_data_nbr_elements_dominant_dimension;
 
     MDCG::Model::field_t region_loops_lower;
     MDCG::Model::field_t region_loops_upper;

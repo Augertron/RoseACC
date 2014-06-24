@@ -130,15 +130,30 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   assert(classes.size() == 1);
   libopenacc_api.region_class = *(classes.begin());
 
-  assert(libopenacc_api.region_class->scope->field_children.size() == 9);
+  assert(libopenacc_api.region_class->scope->field_children.size() == 7);
 
   libopenacc_api.region_param_ptrs = libopenacc_api.region_class->scope->field_children[1];
   libopenacc_api.region_scalar_ptrs = libopenacc_api.region_class->scope->field_children[2];
-  libopenacc_api.region_data_ptrs = libopenacc_api.region_class->scope->field_children[3];
-  libopenacc_api.region_data_size = libopenacc_api.region_class->scope->field_children[4];
-  libopenacc_api.region_loops = libopenacc_api.region_class->scope->field_children[5];
-  libopenacc_api.region_distributed_data = libopenacc_api.region_class->scope->field_children[6];
-  libopenacc_api.region_devices = libopenacc_api.region_class->scope->field_children[8];
+  libopenacc_api.region_data = libopenacc_api.region_class->scope->field_children[3];
+  libopenacc_api.region_loops = libopenacc_api.region_class->scope->field_children[4];
+  libopenacc_api.region_devices = libopenacc_api.region_class->scope->field_children[6];
+
+  libopenacc_api.region_data = libopenacc_api.region_class->scope->field_children[3];
+  assert(libopenacc_api.region_data->node->type != NULL);
+  assert(libopenacc_api.region_data->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+  assert(libopenacc_api.region_data->node->type->node->base_type != NULL);
+  assert(libopenacc_api.region_data->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+  MDCG::Model::class_t data = libopenacc_api.region_data->node->type->node->base_type->node->base_class;
+  assert(data != NULL);
+  assert(data->node->symbol->get_name().getString() == "acc_data_t_");
+
+  assert(data->scope->field_children.size() == 5);
+
+  libopenacc_api.region_data_ptr                             = data->scope->field_children[0];
+  libopenacc_api.region_data_nbr_elements                    = data->scope->field_children[1];
+  libopenacc_api.region_data_element_size                    = data->scope->field_children[2];
+  libopenacc_api.region_data_dominant_dimension              = data->scope->field_children[3];
+  libopenacc_api.region_data_nbr_elements_dominant_dimension = data->scope->field_children[4];
 
   assert(libopenacc_api.region_loops->node->type != NULL);
   assert(libopenacc_api.region_loops->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
@@ -583,7 +598,57 @@ bool getDevicesConfig(LoopTrees * loop_trees, std::vector<struct device_config_t
   assert(num_workers[1] == 0 || num_workers[0] != NULL);                             //  num_workers[1]  => num_workers[0]
 
   if (devices != NULL) {
-    assert(false); /// \todo multidev
+    size_t num_dev = devices->parameters.device_list.size();
+    device_configs.resize(num_dev);
+
+    std::vector<std::pair<SgExpression *, SgExpression *> >::const_iterator it_dev;
+    size_t cnt_dev = 0;
+    for (it_dev = devices->parameters.device_list.begin(); it_dev != devices->parameters.device_list.end(); it_dev++) {
+      device_configs[cnt_dev].device_kind = it_dev->first;
+      device_configs[cnt_dev].device_num = it_dev->second;
+
+      if (num_gangs[0] != NULL) {
+        assert(num_gangs[0]->parameters.exp.size() == num_dev);
+        device_configs[cnt_dev].num_gangs[0] = num_gangs[0]->parameters.exp[cnt_dev];
+      }
+      else device_configs[cnt_dev].num_gangs[0] = SageBuilder::buildIntVal(0);
+
+      if (num_gangs[1] != NULL) {
+        assert(num_gangs[1]->parameters.exp.size() == num_dev);
+        device_configs[cnt_dev].num_gangs[1] = num_gangs[1]->parameters.exp[cnt_dev];
+      }
+      else device_configs[cnt_dev].num_gangs[1] = SageBuilder::buildIntVal(0);
+
+      if (num_gangs[2] != NULL) {
+        assert(num_gangs[2]->parameters.exp.size() == num_dev);
+        device_configs[cnt_dev].num_gangs[2] = num_gangs[2]->parameters.exp[cnt_dev];
+      }
+      else device_configs[cnt_dev].num_gangs[2] = SageBuilder::buildIntVal(0);
+
+      if (num_workers[0] != NULL) {
+        assert(num_workers[0]->parameters.exp.size() == num_dev);
+        device_configs[cnt_dev].num_workers[0] = num_workers[0]->parameters.exp[cnt_dev];
+      }
+      else device_configs[cnt_dev].num_workers[0] = SageBuilder::buildIntVal(0);
+
+      if (num_workers[1] != NULL) {
+        assert(num_workers[1]->parameters.exp.size() == num_dev);
+        device_configs[cnt_dev].num_workers[1] = num_workers[1]->parameters.exp[cnt_dev];
+      }
+      else device_configs[cnt_dev].num_workers[1] = SageBuilder::buildIntVal(0);
+
+      if (num_workers[2] != NULL) {
+        assert(num_workers[2]->parameters.exp.size() == num_dev);
+        device_configs[cnt_dev].num_workers[2] = num_workers[2]->parameters.exp[cnt_dev];
+      }
+      else device_configs[cnt_dev].num_workers[2] = SageBuilder::buildIntVal(0);
+
+      if (vector_length != NULL) {
+        assert(vector_length->parameters.exp.size() == num_dev);
+        device_configs[cnt_dev].vector_length = vector_length->parameters.exp[cnt_dev];
+      }
+      else device_configs[cnt_dev].vector_length = SageBuilder::buildIntVal(0);
+    }
   }
   else {
     device_configs.resize(1);
@@ -768,8 +833,11 @@ SgBasicBlock * buildRegionBlock(
   size_t data_cnt = 0;
   const std::vector< ::KLT::Data<KLT_Annotation<OpenACC::language_t> > *> & datas = loop_trees->getDatas();
   for (it_data = datas.begin(); it_data != datas.end(); it_data++) {
-    // data_ptrs_ref_exp : region->data_ptrs
-    SgExpression * data_ptrs_ref_exp = SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_data_ptrs->node->symbol));
+    // data_ref_exp : region->data['data_cnt']
+    SgExpression * data_ref_exp = SageBuilder::buildPntrArrRefExp(
+      SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_data->node->symbol)),
+      SageBuilder::buildIntVal(data_cnt++)
+    );
 
     // array_ref_exp : ref on base data (go down the dimension for multidimensionnal arrays)
     SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
@@ -777,23 +845,46 @@ SgBasicBlock * buildRegionBlock(
       array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
     array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp); /// \todo not VALID with sections not starting at zero ?????
 
+    // region->data['data_cnt'].ptr= 'array_ref_exp'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
-      SageBuilder::buildPntrArrRefExp(data_ptrs_ref_exp, SageBuilder::buildIntVal(data_cnt)), array_ref_exp
+      SageBuilder::buildDotExp(SageInterface::copyExpression(data_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_data_ptr->node->symbol)), array_ref_exp
     )), result);
 
-    // data_size_ref_exp : region->data_sze
-    SgExpression * data_size_ref_exp = SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_data_size->node->symbol));
-
-    // array_size_exp : Number of data elements
-    SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
+    // nbr_elements_exp : Number of data elements
+    SgExpression * nbr_elements_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
     for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
-      array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+      nbr_elements_exp = SageBuilder::buildMultiplyOp(nbr_elements_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
 
+    // region->data['data_cnt'].nbr_elements = 'nbr_elements_exp'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
-      SageBuilder::buildPntrArrRefExp(data_size_ref_exp, SageBuilder::buildIntVal(data_cnt)), array_size_exp
+      SageBuilder::buildDotExp(SageInterface::copyExpression(data_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_data_nbr_elements->node->symbol)), nbr_elements_exp
     )), result);
 
-    data_cnt++;
+    // element_size_exp : Size of one data element
+    SgExpression * element_size_exp = SageBuilder::buildSizeOfOp((*it_data)->getBaseType());
+
+    // region->data['data_cnt'].element_size = 'element_size_exp'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(SageInterface::copyExpression(data_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_data_element_size->node->symbol)), element_size_exp
+    )), result);
+
+    size_t dominant_dimension = 0; /// \todo
+
+    // dominant_dimension_exp : 
+    SgExpression * dominant_dimension_exp = SageBuilder::buildIntVal(dominant_dimension);
+
+    // region->data['data_cnt'].dominant_dimension = 0
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(SageInterface::copyExpression(data_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_data_dominant_dimension->node->symbol)), dominant_dimension_exp
+    )), result);
+
+    // nbr_elements_dominant_dimension_exp : 
+    SgExpression * nbr_elements_dominant_dimension_exp = SageInterface::copyExpression((*it_data)->getSections()[dominant_dimension].size);
+
+    // region->data['data_cnt'].nbr_elements_dominant_dimension = 0
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(data_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_data_nbr_elements_dominant_dimension->node->symbol)), nbr_elements_dominant_dimension_exp
+    )), result);
   }
 
   const std::vector<LoopTrees::node_t *> & trees = loop_trees->getTrees();
@@ -984,14 +1075,11 @@ SgBasicBlock * buildRegionBlock(
     SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
     for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
       array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+    array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()));
 
     SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
       SageBuilder::buildFunctionRefExp(func_to_call),
-      SageBuilder::buildExprListExp(
-        SageBuilder::buildVarRefExp(region_sym),
-        array_ref_exp,
-        SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()))
-      )
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(region_sym), array_ref_exp, array_size_exp)
     ));
     SageInterface::appendStatement(call, result);
   }
