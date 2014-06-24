@@ -130,13 +130,13 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   assert(classes.size() == 1);
   libopenacc_api.region_class = *(classes.begin());
 
-  assert(libopenacc_api.region_class->scope->field_children.size() == 7);
+  assert(libopenacc_api.region_class->scope->field_children.size() == 6);
 
   libopenacc_api.region_param_ptrs = libopenacc_api.region_class->scope->field_children[1];
   libopenacc_api.region_scalar_ptrs = libopenacc_api.region_class->scope->field_children[2];
   libopenacc_api.region_data = libopenacc_api.region_class->scope->field_children[3];
   libopenacc_api.region_loops = libopenacc_api.region_class->scope->field_children[4];
-  libopenacc_api.region_devices = libopenacc_api.region_class->scope->field_children[6];
+  libopenacc_api.region_devices = libopenacc_api.region_class->scope->field_children[5];
 
   libopenacc_api.region_data = libopenacc_api.region_class->scope->field_children[3];
   assert(libopenacc_api.region_data->node->type != NULL);
@@ -170,7 +170,7 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   libopenacc_api.region_loops_stride = loops->scope->field_children[2];
 
   assert(libopenacc_api.region_devices->node->type != NULL);
-  assert(libopenacc_api.region_devices->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_array_type);
+  assert(libopenacc_api.region_devices->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
   assert(libopenacc_api.region_devices->node->type->node->base_type != NULL);
   assert(libopenacc_api.region_devices->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
   MDCG::Model::class_t region_per_device = libopenacc_api.region_devices->node->type->node->base_type->node->base_class;
@@ -587,6 +587,8 @@ bool getDevicesConfig(LoopTrees * loop_trees, std::vector<struct device_config_t
       case OpenACC::language_t::e_acc_clause_devices:
         assert(devices == NULL);
         devices = (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_devices> *)it_annotation->clause;
+        break;
+      default:
         break;
     }
   }

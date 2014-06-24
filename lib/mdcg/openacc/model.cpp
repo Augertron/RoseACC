@@ -301,11 +301,6 @@ SgExpression * KernelDesc::createFieldInitializer(
     }
     case 12:
     {
-      /// \todo acc_loop_splitter_t * splitted_loop;
-      return SageBuilder::buildIntVal(0);
-    }
-    case 13:
-    {
       /// \todo size_t * version_by_devices; 
       return SageBuilder::buildIntVal(0);
     }
@@ -522,11 +517,25 @@ SgExpression * RegionDesc::createFieldInitializer(
       return SageBuilder::buildVarRefExp(var_decl_res.symbol); /// \todo multidev
     }
     case 14:
-      /// \todo size_t num_distributed_datas;
+    {
+      // size_t num_distributed_data;
       return SageBuilder::buildIntVal(0);
+    }
     case 15:
-      /// \todo struct acc_data_distribution_t_ * data_distributions;
-      return SageBuilder::buildIntVal(0); // NULL
+    {
+      // struct acc_data_distribution_t_ * distributed_data;
+      return SageBuilder::buildIntVal(0);
+    }
+    case 16:
+    {
+      /// \todo size_t num_splitted_loops;
+      return SageBuilder::buildIntVal(0);
+    }
+    case 17:
+    {
+      /// \todo struct acc_loop_splitter_t_ * splitted_loops;
+      return SageBuilder::buildIntVal(0);
+    }
     default:
       assert(false);
   }
