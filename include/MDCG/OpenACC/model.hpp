@@ -89,7 +89,23 @@ struct KernelWithDepsDesc {
 };
 
 struct KernelGroupDesc {
-  typedef std::list<Kernel *> input_t;
+  typedef std::list< Kernel *> input_t;
+
+  static SgExpression * createFieldInitializer(
+    const MDCG::CodeGenerator & codegen,
+    MDCG::Model::field_t element,
+    unsigned field_id,
+    const input_t & input,
+    unsigned file_id
+  );
+
+  static void storeToDB(sqlite3 * db_file, const input_t & input);
+};
+
+struct DistributedDataDesc {
+  static size_t data_cnt;
+
+  typedef ::KLT::Data<Annotation> * input_t;
 
   static SgExpression * createFieldInitializer(
     const MDCG::CodeGenerator & codegen,

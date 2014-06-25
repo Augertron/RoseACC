@@ -113,20 +113,20 @@ SgExpression * KernelVersion::createFieldInitializer(
     case 1:
       /// size_t num_gang[3];
       return SageBuilder::buildAggregateInitializer(SageBuilder::buildExprListExp(
-        SageBuilder::buildIntVal(input->num_gangs[0]),
-        SageBuilder::buildIntVal(input->num_gangs[1]),
-        SageBuilder::buildIntVal(input->num_gangs[2])
+        SageBuilder::buildIntVal(input->config.num_gangs[0]),
+        SageBuilder::buildIntVal(input->config.num_gangs[1]),
+        SageBuilder::buildIntVal(input->config.num_gangs[2])
       ));
     case 2:
       /// size_t num_worker[3];
       return SageBuilder::buildAggregateInitializer(SageBuilder::buildExprListExp(
-        SageBuilder::buildIntVal(input->num_workers[0]),
-        SageBuilder::buildIntVal(input->num_workers[1]),
-        SageBuilder::buildIntVal(input->num_workers[2])
+        SageBuilder::buildIntVal(input->config.num_workers[0]),
+        SageBuilder::buildIntVal(input->config.num_workers[1]),
+        SageBuilder::buildIntVal(input->config.num_workers[2])
       ));
     case 3:
       /// size_t vector_length;
-      return SageBuilder::buildIntVal(input->vector_length);
+      return SageBuilder::buildIntVal(input->config.vector_length);
     case 4:
     {
       /// struct acc_loop_t_ * loops;
@@ -402,6 +402,111 @@ SgExpression * createArrayOfTypeSize(
   return SageBuilder::buildVarRefExp(var_decl_res.symbol);
 }
 
+/*SgExpression * createArrayDistDataDesc(
+  const MDCG::CodeGenerator & codegen,
+  const std::vector<Data<Annotation> *> & input,
+  std::string array_name,
+  unsigned file_id
+) {
+  SgExprListExp * expr_list = SageBuilder::buildExprListExp();
+  SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
+
+  std::vector<Data<Annotation> *>::const_iterator it_data;
+  for (it_data = input.begin(); it_data != input.end(); it_data++) 
+    if ((*it_data)->isDistributed()) {
+//    expr_list->append_expression(SageBuilder::buildSizeOfOp((*it)->get_type()));
+    }
+
+  SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+  assert(global_scope_across_files != NULL);
+  SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
+  assert(size_t_symbol != NULL);
+  SgType * size_t_type = isSgType(size_t_symbol->get_type());
+  assert(size_t_type != NULL);
+  size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input.size()));
+
+  MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(array_name, size_t_type, init, NULL, file_id, false, true);
+  MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+
+  return SageBuilder::buildVarRefExp(var_decl_res.symbol);
+}*/
+
+size_t DistributedDataDesc::data_cnt;
+
+SgExpression * DistributedDataDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  if (!input->isDistributed()) {
+    assert(field_id == 0);
+    data_cnt++;
+    return NULL;
+  }
+
+  switch (field_id) {
+    case 0:
+      // size_t id;
+      return SageBuilder::buildIntVal(data_cnt++);
+    case 1:
+    {
+      // acc_splitting_mode_e mode;
+      switch (input->getDistribution().kind) {
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+          return SageBuilder::buildIntVal(0);
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+          return SageBuilder::buildIntVal(1);
+        default:
+          assert(false);
+      }
+    }
+    case 2:
+    {
+      // size_t nbr_dev;
+      switch (input->getDistribution().kind) {
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+          return SageBuilder::buildIntVal(input->getDistribution().portions.size());
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+          return SageBuilder::buildIntVal(0);
+        default:
+          assert(false);
+      }
+    }
+    case 3:
+    {
+      // size_t * portions;
+      switch (input->getDistribution().kind) {
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+        {
+          assert(false); /// \todo
+          return SageBuilder::buildIntVal(0);
+        }
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+          return SageBuilder::buildIntVal(0);
+        default:
+          assert(false);
+      }
+    }
+    case 4:
+    {
+      // size_t chunk;
+      switch (input->getDistribution().kind) {
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+          return SageBuilder::buildIntVal(0);
+        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+          assert(input->getDistribution().portions.size() == 1);
+          return SageBuilder::buildIntVal(input->getDistribution().portions[0]);
+        default:
+          assert(false);
+      }
+    }
+    default:
+      assert(false);
+  }
+}
+
 SgExpression * RegionDesc::createFieldInitializer(
   const MDCG::CodeGenerator & codegen,
   MDCG::Model::field_t element,
@@ -519,11 +624,18 @@ SgExpression * RegionDesc::createFieldInitializer(
     case 14:
     {
       // size_t num_distributed_data;
-      return SageBuilder::buildIntVal(0);
+      size_t dist_data_cnt = 0;
+      const std::vector< ::KLT::Data<Annotation> *> & data = input.loop_tree->getDatas();
+      std::vector< ::KLT::Data<Annotation> *>::const_iterator it_data;
+      for (it_data = data.begin(); it_data != data.end(); it_data++)
+        if ((*it_data)->isDistributed())
+          dist_data_cnt++;
+      return SageBuilder::buildIntVal(dist_data_cnt);
     }
     case 15:
     {
-      // struct acc_data_distribution_t_ * distributed_data;
+      // \todo struct acc_data_distribution_t_ * distributed_data;
+      DistributedDataDesc::data_cnt = 0;
       return SageBuilder::buildIntVal(0);
     }
     case 16:

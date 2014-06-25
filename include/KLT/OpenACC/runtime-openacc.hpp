@@ -51,6 +51,13 @@ class OpenACC {
       std::vector<tile_desc_t> tiles;
     };
 
+    
+    struct config_t {
+      size_t num_gangs[3];
+      size_t num_workers[3];
+      size_t vector_length;
+    };
+
     enum exec_mode_e {
       gr_ws_vs, /// Gang Redondant   , Worker Single      , Vector Single
       gp_ws_vs, /// Gang Partitioned , Worker Single      , Vector Single

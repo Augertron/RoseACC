@@ -100,6 +100,9 @@ SgFunctionParameterList * createParameterList<
     }
 
     result->append_arg(SageBuilder::buildInitializedName("data_" + data_name, field_type, NULL));
+
+    if (data->isDistributed())
+      result->append_arg(SageBuilder::buildInitializedName("offset_" + data_name, SageBuilder::buildLongType(), NULL));
   }
 
   SgModifierType * context_type = SageBuilder::buildModifierType(
@@ -146,37 +149,46 @@ SgStatement * generateStatement<
   std::vector<SgVarRefExp *> var_refs = SageInterface::querySubTree<SgVarRefExp>(result);
   std::vector<SgVarRefExp *>::const_iterator it_var_ref;
 
-  if (flatten_array_ref) {
-    for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
-      SgVarRefExp * var_ref = *it_var_ref;
-      SgVariableSymbol * var_sym = var_ref->get_symbol();
+  for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
+    SgVarRefExp * var_ref = *it_var_ref;
+    SgVariableSymbol * var_sym = var_ref->get_symbol();
 
-      std::map<SgVariableSymbol *, Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *>::const_iterator it_data_sym_to_data = data_sym_to_data.find(var_sym);
-      if (it_data_sym_to_data == data_sym_to_data.end()) continue; // Not a variable reference to a Data
+    std::map<SgVariableSymbol *, Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *>::const_iterator it_data_sym_to_data = data_sym_to_data.find(var_sym);
+    if (it_data_sym_to_data == data_sym_to_data.end()) continue; // Not a variable reference to a Data
 
-      Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > * data = it_data_sym_to_data->second;
+    Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > * data = it_data_sym_to_data->second;
 
-      if (data->getSections().size() <= 1) continue; // No need for flattening
+    SgPntrArrRefExp * arr_ref = isSgPntrArrRefExp(var_ref->get_parent());
+    SgPntrArrRefExp * top_arr_ref = NULL;
+    std::vector<SgExpression *> subscripts;
+    while (arr_ref != NULL) {
+      top_arr_ref = arr_ref;
+      subscripts.push_back(arr_ref->get_rhs_operand_i());
+      arr_ref = isSgPntrArrRefExp(arr_ref->get_parent());
+    }
+    assert(top_arr_ref != NULL);
+    assert(subscripts.size() == data->getSections().size());
 
-      SgPntrArrRefExp * arr_ref = isSgPntrArrRefExp(var_ref->get_parent());
-      SgPntrArrRefExp * top_arr_ref = NULL;
-      std::list<SgExpression *> subscripts;
-      while (arr_ref != NULL) {
-        top_arr_ref = arr_ref;
-        subscripts.push_back(arr_ref->get_rhs_operand_i());
-        arr_ref = isSgPntrArrRefExp(arr_ref->get_parent());
-      }
-      assert(top_arr_ref != NULL);
-      assert(subscripts.size() == data->getSections().size());
+    if (data->isDistributed()) {
+      size_t distributed_dimension = data->getDistribution().distributed_dimension;
+      assert(distributed_dimension < subscripts.size());
 
-      std::list<SgExpression *>::const_iterator it_subscript;
-      SgExpression * subscript = SageInterface::copyExpression(subscripts.front());
-      subscripts.pop_front();
-      unsigned int cnt = 0;
-      for (it_subscript = subscripts.begin(); it_subscript != subscripts.end(); it_subscript++) {
-        SgExpression * dim_size = SageInterface::copyExpression(data->getSections()[++cnt].size);
+      std::map<Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *, SgVariableSymbol *>::const_iterator it_data_offset = local_symbol_maps.data_offsets.find(data);
+      assert(it_data_offset != local_symbol_maps.data_offsets.end());
+
+      subscripts[distributed_dimension] = SageBuilder::buildAddOp(SageBuilder::buildVarRefExp(it_data_offset->second), subscripts[distributed_dimension]);
+    }
+
+    if (flatten_array_ref && data->getSections().size() > 1) {
+      std::vector<SgExpression *>::const_iterator it_subscript = subscripts.begin();
+      SgExpression * subscript = SageInterface::copyExpression(*it_subscript);
+      it_subscript++;
+      size_t cnt = 1;
+      while (it_subscript != subscripts.end()) {
+        SgExpression * dim_size = SageInterface::copyExpression(data->getSections()[cnt].size);
         subscript = SageBuilder::buildMultiplyOp(subscript, dim_size);
         subscript = SageBuilder::buildAddOp(subscript, SageInterface::copyExpression(*it_subscript));
+        cnt++; it_subscript++;
       }
 
       SageInterface::replaceExpression(top_arr_ref, SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(var_ref), subscript), true);

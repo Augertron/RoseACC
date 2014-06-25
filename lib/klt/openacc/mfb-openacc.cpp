@@ -113,7 +113,7 @@ SgBasicBlock * createLocalDeclarations<
 
   for (it_data = arguments.datas.begin(); it_data != arguments.datas.end(); it_data++) {
     ::KLT::Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > * data = *it_data;
-    SgVariableSymbol * data_sym = data->getVariableSymbol();;
+    SgVariableSymbol * data_sym = data->getVariableSymbol();
     std::string data_name = data_sym->get_name().getString();
 
     SgVariableSymbol * arg_sym = kernel_defn->lookup_variable_symbol("data_" + data_name);
@@ -122,6 +122,15 @@ SgBasicBlock * createLocalDeclarations<
     local_symbol_maps.datas.insert(
       std::pair< ::KLT::Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *, SgVariableSymbol *>(data, arg_sym)
     );
+
+    if (data->isDistributed()) {
+      arg_sym = kernel_defn->lookup_variable_symbol("offset_" + data_name);
+      assert(arg_sym != NULL);
+
+      local_symbol_maps.data_offsets.insert(
+        std::pair< ::KLT::Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *, SgVariableSymbol *>(data, arg_sym)
+      );
+    }
   }
 
   // * Create iterator *
