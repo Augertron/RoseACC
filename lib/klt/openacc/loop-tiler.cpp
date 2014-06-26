@@ -56,9 +56,6 @@ LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runti
         }
       }
     }
-    else if (it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_split) {
-      assert(false);
-    }
   }
 }
 

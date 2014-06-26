@@ -118,7 +118,26 @@ struct DistributedDataDesc {
   static void storeToDB(sqlite3 * db_file, const input_t & input);
 };
 
+struct SplittedLoopDesc {
+  static size_t loop_cnt;
+
+  typedef LoopTrees::loop_t * input_t;
+
+  static SgExpression * createFieldInitializer(
+    const MDCG::CodeGenerator & codegen,
+    MDCG::Model::field_t element,
+    unsigned field_id,
+    const input_t & input,
+    unsigned file_id
+  );
+
+  static void storeToDB(sqlite3 * db_file, const input_t & input);
+};
+
 struct RegionDesc {
+  static size_t current_region;
+  static LoopTrees * current_loop_tree;
+
   struct input_t {
     unsigned id;
     std::string file;

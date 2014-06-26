@@ -36,6 +36,15 @@ bool LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t::isDistri
 }
 
 template <>
+bool LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::loop_t::isSplitted() const {
+  std::vector<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::const_iterator it;
+  for (it = annotations.begin(); it != annotations.end(); it++)
+    if (it->clause->kind == DLX::OpenACC::language_t::e_acc_clause_split)
+      return true;
+  return false;
+}
+
+template <>
 void printAnnotations<DLX::KLT_Annotation<DLX::OpenACC::language_t> >(
   const std::vector<DLX::KLT_Annotation<DLX::OpenACC::language_t> > & annotations,
   std::ostream & out,

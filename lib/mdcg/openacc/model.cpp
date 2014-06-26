@@ -402,35 +402,6 @@ SgExpression * createArrayOfTypeSize(
   return SageBuilder::buildVarRefExp(var_decl_res.symbol);
 }
 
-/*SgExpression * createArrayDistDataDesc(
-  const MDCG::CodeGenerator & codegen,
-  const std::vector<Data<Annotation> *> & input,
-  std::string array_name,
-  unsigned file_id
-) {
-  SgExprListExp * expr_list = SageBuilder::buildExprListExp();
-  SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
-
-  std::vector<Data<Annotation> *>::const_iterator it_data;
-  for (it_data = input.begin(); it_data != input.end(); it_data++) 
-    if ((*it_data)->isDistributed()) {
-//    expr_list->append_expression(SageBuilder::buildSizeOfOp((*it)->get_type()));
-    }
-
-  SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
-  assert(global_scope_across_files != NULL);
-  SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
-  assert(size_t_symbol != NULL);
-  SgType * size_t_type = isSgType(size_t_symbol->get_type());
-  assert(size_t_type != NULL);
-  size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input.size()));
-
-  MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(array_name, size_t_type, init, NULL, file_id, false, true);
-  MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
-
-  return SageBuilder::buildVarRefExp(var_decl_res.symbol);
-}*/
-
 size_t DistributedDataDesc::data_cnt;
 
 SgExpression * DistributedDataDesc::createFieldInitializer(
@@ -480,8 +451,28 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
       switch (input->getDistribution().kind) {
         case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
         {
-          assert(false); /// \todo
-          return SageBuilder::buildIntVal(0);
+          std::ostringstream decl_name;
+            decl_name << "portions_" << RegionDesc::current_region << "_" << input;
+
+          SgExprListExp * expr_list = SageBuilder::buildExprListExp();
+          SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
+
+          std::vector<size_t>::const_iterator it;
+          for (it = input->getDistribution().portions.begin(); it != input->getDistribution().portions.end(); it++)
+            expr_list->append_expression(SageBuilder::buildIntVal(*it));
+
+          SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+          assert(global_scope_across_files != NULL);
+          SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
+          assert(size_t_symbol != NULL);
+          SgType * size_t_type = isSgType(size_t_symbol->get_type());
+          assert(size_t_type != NULL);
+          size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input->getDistribution().portions.size()));
+
+          MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), size_t_type, init, NULL, file_id, false, true);
+          MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+
+          return SageBuilder::buildVarRefExp(var_decl_res.symbol);
         }
         case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
           return SageBuilder::buildIntVal(0);
@@ -507,6 +498,119 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
   }
 }
 
+size_t SplittedLoopDesc::loop_cnt;
+
+SgExpression * SplittedLoopDesc::createFieldInitializer(
+  const MDCG::CodeGenerator & codegen,
+  MDCG::Model::field_t element,
+  unsigned field_id,
+  const input_t & input,
+  unsigned file_id
+) {
+  if (!input->isSplitted()) {
+    assert(field_id == 0);
+    loop_cnt++;
+    return NULL;
+  }
+
+  DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_split> * split_clause = NULL;
+  std::vector<Annotation>::const_iterator it;
+  for (it = input->annotations.begin(); it != input->annotations.end(); it++)
+    if (it->clause->kind == ::DLX::OpenACC::language_t::e_acc_clause_split)
+      split_clause = (DLX::Directives::clause_t<DLX::OpenACC::language_t, DLX::OpenACC::language_t::e_acc_clause_split> *)it->clause;
+
+  assert(split_clause != NULL);
+
+  switch (field_id) {
+    case 0:
+      /// size_t id;
+      return SageBuilder::buildIntVal(RegionDesc::current_loop_tree->getLoopID(input));
+    case 1:
+    {
+      // acc_splitting_mode_e mode;
+      switch (split_clause->parameters.kind) {
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_contiguous:
+          return SageBuilder::buildIntVal(0);
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_chunk:
+          return SageBuilder::buildIntVal(1);
+        default:
+          assert(false);
+      }
+    }
+    case 2:
+    {
+      // size_t nbr_dev;
+      switch (split_clause->parameters.kind) {
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_contiguous:
+          return SageBuilder::buildIntVal(split_clause->parameters.portions.size());
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_chunk:
+          return SageBuilder::buildIntVal(0);
+        default:
+          assert(false);
+      }
+    }
+    case 3:
+    {
+      // size_t * portions;
+      switch (split_clause->parameters.kind) {
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_contiguous:
+        {
+          std::ostringstream decl_name;
+            decl_name << "portions_" << RegionDesc::current_region << "_" << input;
+
+          SgExprListExp * expr_list = SageBuilder::buildExprListExp();
+          SgInitializer * init = SageBuilder::buildAggregateInitializer(expr_list);
+
+          std::vector<SgExpression *>::const_iterator it;
+          for (it = split_clause->parameters.portions.begin(); it != split_clause->parameters.portions.end(); it++) {
+            assert(isSgValueExp(*it));
+            expr_list->append_expression(*it);
+          }
+
+          SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+          assert(global_scope_across_files != NULL);
+          SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
+          assert(size_t_symbol != NULL);
+          SgType * size_t_type = isSgType(size_t_symbol->get_type());
+          assert(size_t_type != NULL);
+          size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(split_clause->parameters.portions.size()));
+
+          MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), size_t_type, init, NULL, file_id, false, true);
+          MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+
+          return SageBuilder::buildVarRefExp(var_decl_res.symbol);
+        }
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_chunk:
+          return SageBuilder::buildIntVal(0);
+        default:
+          assert(false);
+      }
+    }
+    case 4:
+    {
+      // size_t chunk;
+      switch (split_clause->parameters.kind) {
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_contiguous:
+          return SageBuilder::buildIntVal(0);
+        case ::DLX::Directives::generic_clause_t<DLX::OpenACC::language_t>::parameters_t<DLX::OpenACC::language_t::e_acc_clause_split>::e_acc_split_chunk:
+        {
+          assert(split_clause->parameters.portions.size() == 1);
+          assert(isSgValueExp(split_clause->parameters.portions[0]));
+          return split_clause->parameters.portions[0];
+        }
+        default:
+          assert(false);
+      }
+    }
+    default:
+      assert(false);
+  }
+
+}
+
+size_t RegionDesc::current_region;
+LoopTrees * RegionDesc::current_loop_tree;
+
 SgExpression * RegionDesc::createFieldInitializer(
   const MDCG::CodeGenerator & codegen,
   MDCG::Model::field_t element,
@@ -517,6 +621,8 @@ SgExpression * RegionDesc::createFieldInitializer(
   switch (field_id) {
     case 0:
       /// size_t id;
+      current_region = input.id;
+      current_loop_tree = input.loop_tree;
       return SageBuilder::buildIntVal(input.id);
     case 1:
       /// char * file;
@@ -573,7 +679,7 @@ SgExpression * RegionDesc::createFieldInitializer(
       return SageBuilder::buildIntVal(input.loop_tree->getNumDatas());
     case 9:
       /// size_t num_loops;
-      return SageBuilder::buildIntVal(input.loop_tree->numberLoops());
+      return SageBuilder::buildIntVal(input.loop_tree->getNumberLoops());
     case 10:
       /// size_t num_kernel_groups;
       return SageBuilder::buildIntVal(input.kernel_lists.size());
@@ -634,19 +740,60 @@ SgExpression * RegionDesc::createFieldInitializer(
     }
     case 15:
     {
-      // \todo struct acc_data_distribution_t_ * distributed_data;
+      // struct acc_data_distribution_t_ * distributed_data;
+      const std::vector< ::KLT::Data<Annotation> *> & data = input.loop_tree->getDatas();
+
       DistributedDataDesc::data_cnt = 0;
-      return SageBuilder::buildIntVal(0);
+
+      std::ostringstream decl_name;
+        decl_name << "dist_data_" << input.id;
+
+      MDCG::Model::type_t type = element->node->type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+      return codegen.createArrayPointer<DistributedDataDesc>(
+               type->node->base_class,
+               data.size(),
+               data.begin(),
+               data.end(),
+               file_id,
+               decl_name.str()
+             );
     }
     case 16:
     {
-      /// \todo size_t num_splitted_loops;
-      return SageBuilder::buildIntVal(0);
+      /// size_t num_splitted_loops;
+      size_t cnt = 0;
+      const std::vector<LoopTrees::loop_t *> & loops = input.loop_tree->getLoops();
+      std::vector<LoopTrees::loop_t *>::const_iterator it_loop;
+      for (it_loop = loops.begin(); it_loop != loops.end(); it_loop++)
+        if ((*it_loop)->isSplitted())
+          cnt++;
+      return SageBuilder::buildIntVal(cnt);
     }
     case 17:
     {
       /// \todo struct acc_loop_splitter_t_ * splitted_loops;
-      return SageBuilder::buildIntVal(0);
+      const std::vector<LoopTrees::loop_t *> & loops = input.loop_tree->getLoops();
+
+      SplittedLoopDesc::loop_cnt = 0;
+
+      std::ostringstream decl_name;
+        decl_name << "split_loops_" << input.id;
+
+      MDCG::Model::type_t type = element->node->type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+      type = type->node->base_type;
+      assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+      return codegen.createArrayPointer<SplittedLoopDesc>(
+               type->node->base_class,
+               loops.size(),
+               loops.begin(),
+               loops.end(),
+               file_id,
+               decl_name.str()
+             );
     }
     default:
       assert(false);
