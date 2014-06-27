@@ -1,11 +1,12 @@
 
 lib_LTLIBRARIES=libKLT-openacc.la
 
-CXXFLAGS=-g -O0
+AM_CXXFLAGS=-g -O0
 
 libKLT_openacc_la_SOURCES= \
   dlx-openacc.cpp \
   loop-tiler.cpp \
+  data-flow.cpp \
   runtime-openacc.cpp \
   mfb-openacc.cpp \
   klt-openacc.cpp \

@@ -425,9 +425,9 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
     {
       // acc_splitting_mode_e mode;
       switch (input->getDistribution().kind) {
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_contiguous:
           return SageBuilder::buildIntVal(0);
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_chunk:
           return SageBuilder::buildIntVal(1);
         default:
           assert(false);
@@ -437,9 +437,9 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
     {
       // size_t nbr_dev;
       switch (input->getDistribution().kind) {
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_contiguous:
           return SageBuilder::buildIntVal(input->getDistribution().portions.size());
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_chunk:
           return SageBuilder::buildIntVal(0);
         default:
           assert(false);
@@ -449,7 +449,7 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
     {
       // size_t * portions;
       switch (input->getDistribution().kind) {
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_contiguous:
         {
           std::ostringstream decl_name;
             decl_name << "portions_" << RegionDesc::current_region << "_" << input;
@@ -474,7 +474,7 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
 
           return SageBuilder::buildVarRefExp(var_decl_res.symbol);
         }
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_chunk:
           return SageBuilder::buildIntVal(0);
         default:
           assert(false);
@@ -484,9 +484,9 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
     {
       // size_t chunk;
       switch (input->getDistribution().kind) {
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_contiguous:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_contiguous:
           return SageBuilder::buildIntVal(0);
-        case ::KLT::Data<Annotation>::data_distribution_t::e_acc_split_chunk:
+        case ::KLT::Data<Annotation>::data_distribution_t::e_split_chunk:
           assert(input->getDistribution().portions.size() == 1);
           return SageBuilder::buildIntVal(input->getDistribution().portions[0]);
         default:
