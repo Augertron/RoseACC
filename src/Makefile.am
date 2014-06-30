@@ -1,7 +1,7 @@
 
 bin_PROGRAMS=roseacc
 
-CXXFLAGS=-g -O0
+AM_CXXFLAGS=-g -O0
 
 roseacc_SOURCES= \
   roseacc.cpp

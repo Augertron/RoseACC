@@ -927,17 +927,17 @@ SgBasicBlock * buildRegionBlock(
     // region->devices['device_idx'].num_gangs[0] = 'loop_trees->p_num_gangs[0]'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(gang_ref_exp), SageBuilder::buildIntVal(0)),
-      SageInterface::copyExpression(it_config->num_gangs[0])
+      it_config->num_gangs[0] != NULL ? SageInterface::copyExpression(it_config->num_gangs[0]) : SageBuilder::buildIntVal(0)
     )), result);
     // region->devices['device_idx'].num_gangs[1] = 'loop_trees->p_num_gangs[1]'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(gang_ref_exp), SageBuilder::buildIntVal(1)),
-      SageInterface::copyExpression(it_config->num_gangs[1])
+      it_config->num_gangs[1] != NULL ? SageInterface::copyExpression(it_config->num_gangs[1]) : SageBuilder::buildIntVal(0)
     )), result);
     // region->devices['device_idx'].num_gangs[2] = 'loop_trees->p_num_gangs[2]'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildPntrArrRefExp(gang_ref_exp, SageBuilder::buildIntVal(2)),
-      SageInterface::copyExpression(it_config->num_gangs[2])
+      it_config->num_gangs[2] != NULL ? SageInterface::copyExpression(it_config->num_gangs[2]) : SageBuilder::buildIntVal(0)
     )), result);
 
     // worker_ref_exp : region->devices['device_idx'].num_workers
@@ -948,23 +948,23 @@ SgBasicBlock * buildRegionBlock(
     // region->devices['device_idx'].num_workers[0] = 'loop_trees->p_num_workers[0]'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(worker_ref_exp), SageBuilder::buildIntVal(0)),
-      SageInterface::copyExpression(it_config->num_workers[0])
+      it_config->num_workers[0] != NULL ? SageInterface::copyExpression(it_config->num_workers[0]) : SageBuilder::buildIntVal(0)
     )), result);
     // region->devices['device_idx'].num_workers[1] = 'loop_trees->p_num_workers[1]'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(worker_ref_exp), SageBuilder::buildIntVal(1)),
-      SageInterface::copyExpression(it_config->num_workers[1])
+      it_config->num_workers[1] != NULL ? SageInterface::copyExpression(it_config->num_workers[1]) : SageBuilder::buildIntVal(0)
     )), result);
     // region->devices['device_idx'].num_workers[2] = 'loop_trees->p_num_workers[2]'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildPntrArrRefExp(worker_ref_exp, SageBuilder::buildIntVal(2)),
-      SageInterface::copyExpression(it_config->num_workers[2])
+      it_config->num_workers[2] != NULL ? SageInterface::copyExpression(it_config->num_workers[2]) : SageBuilder::buildIntVal(0)
     )), result);
 
     // region->devices['device_idx'].vector_length = 'loop_trees->p_vector_length';
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildDotExp(device_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_devices_vector_length->node->symbol)),
-      SageInterface::copyExpression(it_config->vector_length)
+      it_config->vector_length != NULL ? SageInterface::copyExpression(it_config->vector_length) : SageBuilder::buildIntVal(0)
     )), result);
   }
 
