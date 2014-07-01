@@ -158,8 +158,8 @@ struct RegionDesc {
 
 struct CompilerData {
   struct input_t {
-    SgExpression * runtime_dir;
-    SgExpression * ocl_runtime;
+    SgExpression * openacc_inc_path;
+    SgExpression * openacc_lib_path;
     SgExpression * kernels_dir;
     std::vector<RegionDesc::input_t> regions;
   };

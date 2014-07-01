@@ -78,7 +78,8 @@ struct compiler_modules_t {
     const std::string & ocl_kernels_file_,
     const std::string & kernels_desc_file_,
     const std::string & versions_db_file_,
-    const std::string & libopenacc_dir,
+    const std::string & openacc_inc_path,
+    const std::string & openacc_lib_path,
     const std::string & kernels_dir
   );
 };

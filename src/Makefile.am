@@ -6,10 +6,11 @@ AM_CXXFLAGS=-g -O0
 roseacc_SOURCES= \
   roseacc.cpp
 roseacc_CXXFLAGS= \
-  -DLIBOPENACC_PATH=\"@libopenacc_src_path@\" \
-  -DOPENCL_INC_PATH=\"@opencl_path@/include\" \
+  -DOPENACC_INC_PATH=\"@openacc_inc_path@\" \
+  -DOPENACC_LIB_PATH=\"@openacc_lib_path@\" \
+  -DOPENCL_INC_PATH=\"@opencl_inc_path@\" \
   -I$(srcdir)/../include \
-  -I@sqlite_path@/include \
+  -I@sqlite_inc_path@ \
   -I@boost_path@/include \
   -I@rose_path@/include
 roseacc_LDFLAGS= \

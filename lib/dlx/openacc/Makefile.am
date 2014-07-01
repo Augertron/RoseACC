@@ -1,7 +1,7 @@
 
 lib_LTLIBRARIES=libDLX-openacc.la
 
-CXXFLAGS=-g -O0
+AM_CXXFLAGS=-g -O0
 
 libDLX_openacc_la_SOURCES= \
   language.cpp \
@@ -10,7 +10,7 @@ libDLX_openacc_la_SOURCES= \
   compiler.cpp
 libDLX_openacc_la_CXXFLAGS= \
   -I$(srcdir)/../../../include \
-  -I@sqlite_path@/include \
+  -I@sqlite_inc_path@ \
   -I@rose_path@/include \
   -I@boost_path@/include
 

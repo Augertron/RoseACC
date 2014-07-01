@@ -23,7 +23,7 @@ int main(int argc, char ** argv) {
   }
 
   std::string inc_opt("-I");
-  args.push_back(inc_opt + LIBOPENACC_PATH + "/include");
+  args.push_back(inc_opt + OPENACC_INC_PATH);
   std::string opencl_inc_path(OPENCL_INC_PATH);
   if (opencl_inc_path != "/usr/include")
     args.push_back(inc_opt + opencl_inc_path);
@@ -75,12 +75,13 @@ int main(int argc, char ** argv) {
   ocl_kernels_file = cg_prefix + ocl_kernels_file;
   kernels_desc_file = cg_prefix + kernels_desc_file;
   versions_db_file = cg_prefix + versions_db_file;
-  std::string libopenacc_dir(LIBOPENACC_PATH);
+  std::string openacc_inc_path(OPENACC_INC_PATH);
+  std::string openacc_lib_path(OPENACC_LIB_PATH);
   std::string kernels_dir(boost::filesystem::current_path().string());
 
   // Initialize OpenACC language and build compiler module (loads OpenACC API)
   DLX::OpenACC::language_t::init();
-  DLX::OpenACC::compiler_modules_t compiler_modules(project, ocl_kernels_file, kernels_desc_file, versions_db_file, libopenacc_dir, kernels_dir);
+  DLX::OpenACC::compiler_modules_t compiler_modules(project, ocl_kernels_file, kernels_desc_file, versions_db_file, openacc_inc_path, openacc_lib_path, kernels_dir);
 
   DLX::Frontend::Frontend<DLX::OpenACC::language_t> frontend;
   assert(frontend.parseDirectives(project));

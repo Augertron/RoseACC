@@ -13,7 +13,7 @@ libKLT_openacc_la_SOURCES= \
   code-generation.cpp
 libKLT_openacc_la_CXXFLAGS= \
   -I$(srcdir)/../../../include \
-  -I@sqlite_path@/include \
+  -I@sqlite_inc_path@ \
   -I@rose_path@/include \
   -I@boost_path@/include
 

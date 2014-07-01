@@ -16,6 +16,19 @@ AC_CONFIG_SRCDIR([include/openacc_spec.hpp])
 # Checks for programs.
 AC_PROG_CXX
 
+# Checks for header files.
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_HEADER_STDBOOL
+AC_TYPE_SIZE_T
+
+# Checks for library functions.
+AC_FUNC_MALLOC
+
+#####
+# ROSE
+#####
+
 AC_ARG_WITH(rose,           [  --with-rose              ROSE source tree])
 if test ! -z "$with_rose"
 then
@@ -25,43 +38,68 @@ else
   AC_MSG_ERROR([Need path to ROSE install tree for RoseACC.])
 fi
 
-AC_ARG_WITH(libopenacc-src, [  --with-libopenacc-src    libOpenACC source tree])
-if test ! -z "$with_libopenacc_src"
+#####
+# libOpenACC
+#####
+
+AC_ARG_WITH(openacc-include, [  --with-openacc-include    OpenACC include path])
+if test ! -z "$with_openacc_include"
 then
-  AC_MSG_NOTICE([Path to libOpenACC source tree provided])
-  AC_SUBST(libopenacc_src_path, "$with_libopenacc_src")
+	AC_MSG_NOTICE([OpenACC include path provided])
+        AC_SUBST(openacc_inc_path, $with_openacc_include)
 else
-  AC_MSG_ERROR([Need path to libOpenACC source tree for RoseACC.])
+  AC_MSG_ERROR([Missing OpenACC include path.])
 fi
 
-AC_ARG_WITH(opencl,        [  --with-opencl            OpenCL path])
-
-if test ! -z "$with_opencl"
+AC_ARG_WITH(openacc-libdir,  [  --with-openacc-libdir     OpenACC library path])
+if test ! -z "$with_openacc_libdir"
 then
-  AC_MSG_NOTICE([OpenCL path provided])
-  AC_SUBST(opencl_path, "$with_opencl")
+	AC_MSG_NOTICE([OpenACC library path provided])
+        AC_SUBST(openacc_lib_path, $with_openacc_libdir)
 else
-  AC_MSG_ERROR([Missing OpenCL paths.])
+  AC_MSG_ERROR([Missing OpenACC library path.])
 fi
-# TODO test OpenCL
 
-AC_ARG_WITH(sqlite,        [  --with-sqlite            SQLite path])
-AC_ARG_WITH(sqlite-libdir, [  --with-sqlite-libdir     SQLite libraries path])
+#####
+# OpenCL
+#####
 
-if test ! -z "$with_sqlite"
+AC_ARG_WITH(opencl-include, [  --with-opencl-include    OpenCL include path])
+
+if test ! -z "$with_opencl_include"
 then
-  AC_MSG_NOTICE([SQLite path provided])
-  AC_SUBST(sqlite_path, "$with_sqlite")
-  AC_SUBST(sqlite_lib_path, "$with_sqlite/lib")
+	AC_MSG_NOTICE([OpenCL include path provided])
+        AC_SUBST(opencl_inc_path, $with_opencl_include)
 else
-  AC_MSG_ERROR([Missing SQLite headers and/or libraries paths.])
+  AC_MSG_ERROR([Missing OpenCL include path.])
+fi
+
+#####
+# SQLite
+#####
+
+AC_ARG_WITH(sqlite-include, [  --with-sqlite-include    SQLite include path])
+AC_ARG_WITH(sqlite-libdir,  [  --with-sqlite-libdir     SQLite library path])
+
+if test ! -z "$with_sqlite_include"
+then
+	AC_MSG_NOTICE([SQLite include path provided])
+        AC_SUBST(sqlite_inc_path, $with_sqlite_include)
+else
+  AC_MSG_ERROR([Missing SQLite include path.])
 fi
 if test ! -z "$with_sqlite_libdir"
 then
-  AC_MSG_NOTICE([SQLite libraries path provided])
-  AC_SUBST(sqlite_lib_path, $with_sqlite_libdir)
+	AC_MSG_NOTICE([SQLite library path provided])
+        AC_SUBST(sqlite_lib_path, $with_sqlite_libdir)
+else
+  AC_MSG_ERROR([Missing SQLite library path.])
 fi
 # TODO test SQLite
+
+#####
+# Boost (RoseACC depends on ROSE which need Boost)
+#####
 
 AC_ARG_WITH(boost,         [  --with-boost             BOOST path])
 AC_ARG_WITH(boost-libdir,  [  --with-boost-libdir      BOOST libraries path])
@@ -80,15 +118,6 @@ then
   AC_SUBST(boost_inc_path, $with_boost_inc)
 fi
 # TODO test BOOST
-
-# Checks for header files.
-
-# Checks for typedefs, structures, and compiler characteristics.
-AC_HEADER_STDBOOL
-AC_TYPE_SIZE_T
-
-# Checks for library functions.
-AC_FUNC_MALLOC
 
 AC_CONFIG_FILES([Makefile
                  include/DLX/Makefile

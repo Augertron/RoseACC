@@ -34,7 +34,8 @@ compiler_modules_t::compiler_modules_t(
   const std::string & ocl_kernels_file_,
   const std::string & kernels_desc_file_,
   const std::string & versions_db_file_,
-  const std::string & libopenacc_dir,
+  const std::string & openacc_inc_path,
+  const std::string & openacc_lib_path,
   const std::string & kernels_dir
 ) :
   driver(project),
@@ -58,7 +59,7 @@ compiler_modules_t::compiler_modules_t(
     driver.setUnparsedFile(host_data_file_id);
     driver.setCompiledFile(host_data_file_id);
 
-  libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, libopenacc_dir + "/include");
+  libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, openacc_inc_path);
 
   // Get base class for host data generation
   std::set<MDCG::Model::class_t> classes;
@@ -66,8 +67,8 @@ compiler_modules_t::compiler_modules_t(
   assert(classes.size() == 1);
   compiler_data_class = *(classes.begin());
 
-  comp_data.runtime_dir = SageBuilder::buildStringVal(libopenacc_dir);
-  comp_data.ocl_runtime = SageBuilder::buildStringVal("lib/opencl/libopenacc.cl");
+  comp_data.openacc_inc_path = SageBuilder::buildStringVal(openacc_inc_path);
+  comp_data.openacc_lib_path = SageBuilder::buildStringVal(openacc_lib_path);
   comp_data.kernels_dir = SageBuilder::buildStringVal(kernels_dir);
 
   // Load libOpenACC API for KLT

@@ -809,11 +809,11 @@ SgExpression * CompilerData::createFieldInitializer(
 ) {
   switch (field_id) {
     case 0:
-      /// const char * acc_runtime_dir;
-      return input.runtime_dir;
+      /// const char * acc_inc_path;
+      return input.openacc_inc_path;
     case 1:
-      /// const char * acc_runtime_ocl;
-      return input.ocl_runtime;
+      /// const char * acc_lib_path;
+      return input.openacc_lib_path;
     case 2:
       /// const char * acc_kernels_dir;
       return input.kernels_dir;
