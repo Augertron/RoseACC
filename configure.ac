@@ -5,9 +5,11 @@ AC_PREREQ([2.68])
 
 AC_INIT([RoseACC], [0.1], [vanderbruggentristan@gmail.com])
 
-AM_INIT_AUTOMAKE([RoseACC], [0.1])
+AC_CONFIG_MACRO_DIR([m4])
 
-LT_INIT()
+LT_INIT
+
+AM_INIT_AUTOMAKE([RoseACC], [0.1])
 
 AC_CONFIG_SRCDIR([include/openacc_spec.hpp])
 
