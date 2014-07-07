@@ -651,6 +651,8 @@ bool getDevicesConfig(LoopTrees * loop_trees, std::vector<struct device_config_t
         device_configs[cnt_dev].vector_length = vector_length->parameters.exp[cnt_dev];
       }
       else device_configs[cnt_dev].vector_length = SageBuilder::buildIntVal(0);
+
+      cnt_dev++;
     }
   }
   else {
