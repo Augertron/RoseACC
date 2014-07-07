@@ -139,10 +139,11 @@ struct RegionDesc {
   static LoopTrees * current_loop_tree;
 
   struct input_t {
-    unsigned id;
+    size_t id;
     std::string file;
     LoopTrees * loop_tree;
     std::set<std::list<Kernel *> > kernel_lists;
+    size_t num_devices;
   };
 
   static SgExpression * createFieldInitializer(

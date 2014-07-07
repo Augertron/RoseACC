@@ -46,19 +46,20 @@ int main(int argc, char ** argv) {
     if (it_str->find("desc_format") == 0) {
       assert(descriptor_format == e_unknown);
       std::string format = it_str->substr(12);
-      if (format.compare("static_data"))
+      if (format.compare("static_data") == 0)
         descriptor_format = e_static_data;
-      else if (format.compare("database"))
+      else if (format.compare("database") == 0)
         descriptor_format = e_database;
       else assert(false);
     }
-    else if (it_str->find("cg_prefix") == 0) {
+    else if (it_str->compare("cg_prefix") == 0) {
       assert(cg_prefix.empty());
       cg_prefix = it_str->substr(10);
     }
     else assert(false);
   }
   assert(descriptor_format != e_unknown);
+  assert(descriptor_format == e_static_data);
 
   if (cg_prefix.empty()) {
     assert(project->get_fileList().size() == 1);
@@ -90,6 +91,23 @@ int main(int argc, char ** argv) {
   DLX::Compiler::Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t> compiler(compiler_modules);
   assert(compiler.compile(frontend.directives, frontend.graph_entry, frontend.graph_final));
 
+  switch (descriptor_format) {
+    case e_static_data:
+      compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(
+                                   compiler_modules.compiler_data_class,
+                                   compiler_modules.comp_data,
+                                   compiler_modules.host_data_file_id,
+                                   "compiler_data"
+                                 );
+      break;
+    case e_database:
+      assert(false);
+  /// \todo empty 'compiler_data'
+  /// \todo MDCG::OpenACC::CompilerData::storeToDB(compiler_modules.versions_db_file, compiler_modules.comp_data);
+      break;
+    default:
+      assert(false);
+  }
   return backend(project);
 }
 

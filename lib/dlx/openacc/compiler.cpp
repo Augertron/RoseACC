@@ -769,7 +769,8 @@ SgBasicBlock * buildRegionBlock(
   LoopTrees * loop_trees,
   const DLX::OpenACC::compiler_modules_t::libopenacc_api_t & libopenacc_api,
   MFB::KLT_Driver & driver,
-  SgScopeStatement * scope
+  SgScopeStatement * scope,
+  const std::vector<struct device_config_t> & device_configs
 ) {
   SgBasicBlock * result = SageBuilder::buildBasicBlock();
 
@@ -896,8 +897,6 @@ SgBasicBlock * buildRegionBlock(
   for (it_tree = trees.begin(); it_tree != trees.end(); it_tree++)
     genLoopConfig(*it_tree, libopenacc_api, driver, result, loop_cnt, region_sym);
 
-  std::vector<struct device_config_t> device_configs;
-  assert(getDevicesConfig(loop_trees, device_configs));
   std::vector<struct device_config_t>::const_iterator it_config;
   size_t device_cnt = 0;
   for (it_config = device_configs.begin(); it_config != device_configs.end(); it_config++) {
@@ -1103,6 +1102,8 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
   const Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::directives_ptr_set_t & graph_entry,
   const Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::directives_ptr_set_t & graph_final
 ) {
+  assert(compiler_modules.comp_data.regions.empty());
+
   /// \todo verify that it is correct OpenACC.....
 
   /// Extract LoopTrees from original code
@@ -1124,29 +1125,27 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
     }
   }
 
-  /// Generate kernels
+  compiler_modules.comp_data.regions.resize(regions.size());
+
+  /// Transforms parallel/kernel directives
   size_t region_cnt = 0;
   std::map<Directives::directive_t<OpenACC::language_t> *, LoopTrees *>::const_iterator it_region;
-  for (it_region = regions.begin(); it_region != regions.end(); it_region++) {
-    MDCG::OpenACC::RegionDesc::input_t input_region;
+  for (it_region = regions.begin(); it_region != regions.end(); it_region++, region_cnt++) {
+    /// Get devices configuration from LoopTrees annotation
+    std::vector<struct device_config_t> device_configs;
+    assert(getDevicesConfig(it_region->second, device_configs));
+
+    /// Build associated input for MDCG model
+    MDCG::OpenACC::RegionDesc::input_t & input_region = compiler_modules.comp_data.regions[region_cnt];
       input_region.id = it_region->second->id;
       input_region.file = compiler_modules.ocl_kernels_file;
       input_region.loop_tree = it_region->second;
+      input_region.num_devices = device_configs.size();
 
 //  input_region.loop_tree->toText(std::cout);
 
+    /// Generate OpenCL kernel (stored in 'input_region.kernel_lists')
     compiler_modules.generator.generate(*(it_region->second), input_region.kernel_lists, compiler_modules.cg_config);
-
-    compiler_modules.comp_data.regions.push_back(input_region);
-  }
-
-  /// Generate host data
-  compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(compiler_modules.compiler_data_class, compiler_modules.comp_data, compiler_modules.host_data_file_id, "compiler_data");
-
-//  MDCG::OpenACC::CompilerData::storeToDB(compiler_modules.versions_db_file, compiler_modules.comp_data);
-
-  /// Transforms parallel/kernel directives
-  for (it_region = regions.begin(); it_region != regions.end(); it_region++) {
 
     SgStatement * old_region = NULL;
     if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_parallel)
@@ -1166,7 +1165,8 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
                                     it_region->second,
                                     compiler_modules.libopenacc_api,
                                     compiler_modules.driver,
-                                    SageInterface::getScope(old_region)
+                                    SageInterface::getScope(old_region),
+                                    device_configs
                                   );
 
     if (it_region->first->construct->kind == OpenACC::language_t::e_acc_construct_parallel)
@@ -1177,7 +1177,7 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
     SageInterface::replaceStatement(old_region, region_block);
   }
 
-  /// Transforms data constructs
+  /// Transforms data directives
   for (it_directive = directives.begin(); it_directive != directives.end(); it_directive++) {
     Directives::directive_t<OpenACC::language_t> * directive = *it_directive;
     if (directive->construct->kind == OpenACC::language_t::e_acc_construct_data) {
@@ -1185,6 +1185,7 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
     }
   }
 
+  // Removes all OpenACC pragma
   std::vector<SgPragmaDeclaration * > pragma_decls = SageInterface::querySubTree<SgPragmaDeclaration>(compiler_modules.driver.project);
   std::vector<SgPragmaDeclaration * >::iterator it_pragma_decl;
   for (it_pragma_decl = pragma_decls.begin(); it_pragma_decl != pragma_decls.end(); it_pragma_decl++) {

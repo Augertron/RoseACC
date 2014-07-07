@@ -702,7 +702,8 @@ SgExpression * RegionDesc::createFieldInitializer(
     }
     case 12:
       /// size_t num_devices;
-      return SageBuilder::buildIntVal(1); /// \todo multidev
+      return SageBuilder::buildIntVal(input.num_devices); /// \todo multidev
+/*
     case 13:
     {
       /// struct acc_device_id_pair_t { acc_device_t kind; size_t num; } * devices;
@@ -727,7 +728,8 @@ SgExpression * RegionDesc::createFieldInitializer(
 
       return SageBuilder::buildVarRefExp(var_decl_res.symbol); /// \todo multidev
     }
-    case 14:
+*/
+    case 13:
     {
       // size_t num_distributed_data;
       size_t dist_data_cnt = 0;
@@ -738,7 +740,7 @@ SgExpression * RegionDesc::createFieldInitializer(
           dist_data_cnt++;
       return SageBuilder::buildIntVal(dist_data_cnt);
     }
-    case 15:
+    case 14:
     {
       // struct acc_data_distribution_t_ * distributed_data;
       const std::vector< ::KLT::Data<Annotation> *> & data = input.loop_tree->getDatas();
@@ -761,7 +763,7 @@ SgExpression * RegionDesc::createFieldInitializer(
                decl_name.str()
              );
     }
-    case 16:
+    case 15:
     {
       /// size_t num_splitted_loops;
       size_t cnt = 0;
@@ -772,7 +774,7 @@ SgExpression * RegionDesc::createFieldInitializer(
           cnt++;
       return SageBuilder::buildIntVal(cnt);
     }
-    case 17:
+    case 16:
     {
       /// \todo struct acc_loop_splitter_t_ * splitted_loops;
       const std::vector<LoopTrees::loop_t *> & loops = input.loop_tree->getLoops();
