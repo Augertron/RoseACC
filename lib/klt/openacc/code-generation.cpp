@@ -176,7 +176,7 @@ SgStatement * generateStatement<
       std::map<Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *, SgVariableSymbol *>::const_iterator it_data_offset = local_symbol_maps.data_offsets.find(data);
       assert(it_data_offset != local_symbol_maps.data_offsets.end());
 
-      subscripts[distributed_dimension] = SageBuilder::buildAddOp(SageBuilder::buildVarRefExp(it_data_offset->second), subscripts[distributed_dimension]);
+      subscripts[distributed_dimension] = SageBuilder::buildSubtractOp(subscripts[distributed_dimension], SageBuilder::buildVarRefExp(it_data_offset->second));
     }
 
     if (flatten_array_ref && data->getSections().size() > 1) {

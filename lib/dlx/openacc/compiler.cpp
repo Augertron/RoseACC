@@ -887,7 +887,7 @@ SgBasicBlock * buildRegionBlock(
     // nbr_elements_dominant_dimension_exp : 
     SgExpression * nbr_elements_dominant_dimension_exp = SageInterface::copyExpression((*it_data)->getSections()[dominant_dimension].size);
 
-    // region->data['data_cnt'].nbr_elements_dominant_dimension = 0
+    // region->data['data_cnt'].nbr_elements_dominant_dimension = 'nbr_elements_dominant_dimension_exp'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
       SageBuilder::buildDotExp(data_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_data_nbr_elements_dominant_dimension->node->symbol)), nbr_elements_dominant_dimension_exp
     )), result);
