@@ -103,28 +103,32 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   assert(libopenacc_api.get_device_idx != NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_copyin_regions_");
-  libopenacc_api.copyin= func->node->symbol;
-  assert(libopenacc_api.copyin!= NULL);
+  libopenacc_api.copyin = func->node->symbol;
+  assert(libopenacc_api.copyin != NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_copyout_regions_");
-  libopenacc_api.copyout= func->node->symbol;
-  assert(libopenacc_api.copyout!= NULL);
+  libopenacc_api.copyout = func->node->symbol;
+  assert(libopenacc_api.copyout != NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_create_regions_");
-  libopenacc_api.create= func->node->symbol;
-  assert(libopenacc_api.create!= NULL);
+  libopenacc_api.create = func->node->symbol;
+  assert(libopenacc_api.create != NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_present_regions_");
+  libopenacc_api.present = func->node->symbol;
+  assert(libopenacc_api.present != NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyin_regions_");
-  libopenacc_api.present_or_copyin= func->node->symbol;
+  libopenacc_api.present_or_copyin = func->node->symbol;
   assert(libopenacc_api.present_or_copyin!= NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyout_regions_");
-  libopenacc_api.present_or_copyout= func->node->symbol;
-  assert(libopenacc_api.present_or_copyout!= NULL);
+  libopenacc_api.present_or_copyout = func->node->symbol;
+  assert(libopenacc_api.present_or_copyout != NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_present_or_create_regions_");
-  libopenacc_api.present_or_create= func->node->symbol;
-  assert(libopenacc_api.present_or_create!= NULL);
+  libopenacc_api.present_or_create = func->node->symbol;
+  assert(libopenacc_api.present_or_create != NULL);
 
   std::set<MDCG::Model::class_t> classes;
   model_builder.get(libopenacc_model).lookup<MDCG::Model::class_t>("acc_region_t_", classes);
@@ -349,10 +353,10 @@ void interpretClauses(
   }
 }
 
-LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map);
+LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & locals, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map);
 
-LoopTrees::block_t * buildLoopTreeBlock(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
-  LoopTrees::node_t * child = buildLoopTree(stmt, loop_tree, iterators, others, loop_map);
+LoopTrees::block_t * buildLoopTreeBlock(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & locals, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
+  LoopTrees::node_t * child = buildLoopTree(stmt, loop_tree, iterators, locals, others, loop_map);
   assert(child != NULL);
   LoopTrees::block_t * block = dynamic_cast<LoopTrees::block_t *>(child);
   if (block == NULL) {
@@ -362,7 +366,7 @@ LoopTrees::block_t * buildLoopTreeBlock(SgStatement * stmt, LoopTrees * loop_tre
   return block;
 }
 
-LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
+LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std::vector<SgVariableSymbol *> & iterators, std::vector<SgVariableSymbol *> & locals, std::vector<SgVariableSymbol *> & others, std::map<SgForStatement *, LoopTrees::loop_t *> & loop_map) {
   switch (stmt->variantT()) {
     case V_SgBasicBlock:
     {
@@ -373,7 +377,7 @@ LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std
       std::vector<SgStatement *>::const_iterator it_stmt;
       for (it_stmt = bb->get_statements().begin(); it_stmt != bb->get_statements().end(); it_stmt++)
         if (!isSgPragmaDeclaration(*it_stmt))
-          block->children.push_back(buildLoopTree(*it_stmt, loop_tree, iterators, others, loop_map));
+          block->children.push_back(buildLoopTree(*it_stmt, loop_tree, iterators, locals, others, loop_map));
 
       return block;
     }
@@ -416,7 +420,7 @@ LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std
 
       loop_map.insert(std::pair<SgForStatement *, LoopTrees::loop_t *>(for_stmt, loop));
 
-      loop->block = buildLoopTreeBlock(for_stmt->get_loop_body(), loop_tree, iterators, others, loop_map);
+      loop->block = buildLoopTreeBlock(for_stmt->get_loop_body(), loop_tree, iterators, locals, others, loop_map);
 
       return loop;
     }
@@ -433,14 +437,14 @@ LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std
       std::vector<SgVarRefExp *>::const_iterator it_var_ref;
       for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
         SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
-        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end())
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end() && std::find(locals.begin(), locals.end(), sym) == locals.end())
           others.push_back(sym); 
       }
 
       LoopTrees::cond_t * cond = new LoopTrees::cond_t(cond_expr);
       
-      cond->block_true = buildLoopTreeBlock(if_stmt->get_true_body(), loop_tree, iterators, others, loop_map);
-      cond->block_false = buildLoopTreeBlock(if_stmt->get_false_body(), loop_tree, iterators, others, loop_map);
+      cond->block_true = buildLoopTreeBlock(if_stmt->get_true_body(), loop_tree, iterators, locals, others, loop_map);
+      cond->block_false = buildLoopTreeBlock(if_stmt->get_false_body(), loop_tree, iterators, locals, others, loop_map);
       
       return cond;
     }
@@ -454,7 +458,31 @@ LoopTrees::node_t * buildLoopTree(SgStatement * stmt, LoopTrees * loop_tree, std
       std::vector<SgVarRefExp *>::const_iterator it_var_ref;
       for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
         SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
-        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end())
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end() && std::find(locals.begin(), locals.end(), sym) == locals.end())
+          others.push_back(sym); 
+      }
+
+      return new LoopTrees::stmt_t(stmt);
+    }
+    case V_SgVariableDeclaration:
+    {
+      SgVariableDeclaration * var_decl = isSgVariableDeclaration(stmt);
+      assert(var_decl != NULL);
+      SgScopeStatement * scope = var_decl->get_scope();
+      assert(scope != NULL);
+      const std::vector<SgInitializedName *> & decls = var_decl->get_variables();
+      std::vector<SgInitializedName *>::const_iterator it_decl;
+      for (it_decl = decls.begin(); it_decl != decls.end(); it_decl++) {
+        SgVariableSymbol * var_sym = scope->lookup_variable_symbol((*it_decl)->get_name());
+        assert(var_sym != NULL);
+        locals.push_back(var_sym);
+      }
+
+      std::vector<SgVarRefExp *> var_refs = SageInterface::querySubTree<SgVarRefExp>(stmt);
+      std::vector<SgVarRefExp *>::const_iterator it_var_ref;
+      for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++) {
+        SgVariableSymbol * sym = (*it_var_ref)->get_symbol();
+        if (std::find(iterators.begin(), iterators.end(), sym) == iterators.end() && std::find(locals.begin(), locals.end(), sym) == locals.end())
           others.push_back(sym); 
       }
 
@@ -500,6 +528,7 @@ void extractLoopTrees(
         }
 
        std::vector<SgVariableSymbol *> iterators;
+       std::vector<SgVariableSymbol *> locals;
        std::vector<SgVariableSymbol *> others;
 
         SgBasicBlock * region_bb = isSgBasicBlock(region_base);
@@ -507,9 +536,9 @@ void extractLoopTrees(
            std::vector<SgStatement *>::const_iterator it_stmt;
            for (it_stmt = region_bb->get_statements().begin(); it_stmt != region_bb->get_statements().end(); it_stmt++)
              if (!isSgPragmaDeclaration(*it_stmt))
-               loop_tree->addTree(buildLoopTree(*it_stmt, loop_tree, iterators, others, loop_map));
+               loop_tree->addTree(buildLoopTree(*it_stmt, loop_tree, iterators, locals, others, loop_map));
         }
-        else loop_tree->addTree(buildLoopTree(region_base, loop_tree, iterators, others, loop_map));
+        else loop_tree->addTree(buildLoopTree(region_base, loop_tree, iterators, locals, others, loop_map));
 
         const std::vector<SgVariableSymbol *> & params = loop_tree->getParameters();
         const std::vector<KLT::Data<Annotation> *> & datas_ = loop_tree->getDatas();

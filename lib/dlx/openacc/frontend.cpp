@@ -697,6 +697,8 @@ void lookup_region_successors(
           assert(false); /// \todo Non OpenACC pragma would not be in 'translation_map' and trigger this assertion
         case V_SgExprStatement:
           break; /// \todo might be a call-site for a function known to use OpenACC
+        case V_SgVariableDeclaration:
+          break; /// \todo might be a call-site for a function known to use OpenACC
         default:
           assert(false);
       }
@@ -746,6 +748,8 @@ void lookup_loop_successors(
         break;
       }
       case V_SgExprStatement:
+        break; /// \todo might be a call-site for a user-defined function that has to be inlined 
+      case V_SgVariableDeclaration:
         break; /// \todo might be a call-site for a user-defined function that has to be inlined 
       case V_SgPragmaDeclaration:
         assert(false); /// \todo Non OpenACC pragma would not be in 'translation_map' and trigger this assertion

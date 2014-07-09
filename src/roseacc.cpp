@@ -19,6 +19,10 @@ int main(int argc, char ** argv) {
       roseacc_args.push_back(it_str->substr(10));
       it_str = args.erase(it_str);
     }
+    else if (it_str->find("-roseacc:") == 0) {
+      roseacc_args.push_back(it_str->substr(9));
+      it_str = args.erase(it_str);
+    }
     else it_str++;
   }
 
@@ -28,6 +32,7 @@ int main(int argc, char ** argv) {
   if (opencl_inc_path != "/usr/include")
     args.push_back(inc_opt + opencl_inc_path);
   args.push_back("-DOPENACC");
+//args.push_back("-rose:wave");
 
   // Build ROSE project
   SgProject * project = new SgProject::SgProject(args);
