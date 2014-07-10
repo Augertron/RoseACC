@@ -90,13 +90,17 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   libopenacc_api.pop_data_environment = func->node->symbol;
   assert(libopenacc_api.pop_data_environment != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_build_region");
-  libopenacc_api.build_region = func->node->symbol;
-  assert(libopenacc_api.build_region != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_region_build");
+  libopenacc_api.region_build = func->node->symbol;
+  assert(libopenacc_api.region_build != NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_region_execute");
   libopenacc_api.region_execute = func->node->symbol;
   assert(libopenacc_api.region_execute != NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_region_free");
+  libopenacc_api.region_free = func->node->symbol;
+  assert(libopenacc_api.region_free != NULL);
 
   func = model.lookup<MDCG::Model::function_t>("acc_get_device_idx");
   libopenacc_api.get_device_idx = func->node->symbol;
@@ -850,8 +854,9 @@ SgBasicBlock * buildRegionBlock(
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.push_data_environment, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.pop_data_environment, scope);
 
-  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.build_region, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.region_build, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.region_execute, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.region_free, scope);
 
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyin, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyin_region, scope);
@@ -868,11 +873,11 @@ SgBasicBlock * buildRegionBlock(
 
   driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_class->node->symbol, scope);
 
-  // build decl : acc_region_t region = acc_build_region(0);
+  // build decl : acc_region_t region = acc_region_build(0);
 
   SgInitializer * init = SageBuilder::buildAssignInitializer(
     SageBuilder::buildFunctionCallExp(
-      SageBuilder::buildFunctionRefExp(libopenacc_api.build_region),
+      SageBuilder::buildFunctionRefExp(libopenacc_api.region_build),
       SageBuilder::buildExprListExp(SageBuilder::buildIntVal(loop_trees->id))
     )
   );
@@ -1170,6 +1175,12 @@ SgBasicBlock * buildRegionBlock(
   ));
   SageInterface::appendStatement(pop_dataenv_call, result);
 
+  SgExprStatement * region_free_call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(libopenacc_api.region_free),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(region_sym))
+  ));
+  SageInterface::appendStatement(region_free_call, result);
+
   return result;
 }
 
@@ -1277,6 +1288,8 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
         data_block = SageBuilder::buildBasicBlock(child_stmt);
       }
       assert(data_block != NULL);
+      SageInterface::replaceStatement(data_construct->assoc_nodes.data_region, data_block);
+      data_construct->assoc_nodes.data_region = data_block;
 
       std::vector<Directives::generic_clause_t<OpenACC::language_t> *>::const_iterator it_clause;
       for (it_clause = directive->clause_list.begin(); it_clause != directive->clause_list.end(); it_clause++) {
@@ -1365,6 +1378,16 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
           }
         }
       }
+
+      SgExprStatement * call_to_push_data_env = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+        SageBuilder::buildFunctionRefExp(compiler_modules.libopenacc_api.push_data_environment), SageBuilder::buildExprListExp()
+      ));
+      SageInterface::prependStatement(call_to_push_data_env, data_block);
+
+      SgExprStatement * call_to_pop_data_env = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+        SageBuilder::buildFunctionRefExp(compiler_modules.libopenacc_api.pop_data_environment), SageBuilder::buildExprListExp()
+      ));
+      SageInterface::appendStatement(call_to_pop_data_env, data_block);
     }
   }
 

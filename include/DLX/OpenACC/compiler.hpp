@@ -32,8 +32,9 @@ struct compiler_modules_t {
     SgFunctionSymbol * push_data_environment;
     SgFunctionSymbol * pop_data_environment;
 
-    SgFunctionSymbol * build_region;
+    SgFunctionSymbol * region_build;
     SgFunctionSymbol * region_execute;
+    SgFunctionSymbol * region_free;
 
     SgFunctionSymbol * get_device_idx;
 
