@@ -38,12 +38,19 @@ struct compiler_modules_t {
     SgFunctionSymbol * get_device_idx;
 
     SgFunctionSymbol * copyin;
+    SgFunctionSymbol * copyin_region;
     SgFunctionSymbol * copyout;
+    SgFunctionSymbol * copyout_region;
     SgFunctionSymbol * create;
+    SgFunctionSymbol * create_region;
     SgFunctionSymbol * present;
+    SgFunctionSymbol * present_region;
     SgFunctionSymbol * present_or_copyin;
+    SgFunctionSymbol * present_or_copyin_region;
     SgFunctionSymbol * present_or_copyout;
+    SgFunctionSymbol * present_or_copyout_region;
     SgFunctionSymbol * present_or_create;
+    SgFunctionSymbol * present_or_create_region;
 
     MDCG::Model::class_t region_class;
 

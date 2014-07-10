@@ -1014,6 +1014,8 @@ unsigned readOpenaccModel(MDCG::ModelBuilder & model_builder, const std::string 
   model_builder.add(openacc_model, "memory",   libopenacc_inc_dir + "/OpenACC/private", "h");
   model_builder.add(openacc_model, "runtime",  libopenacc_inc_dir + "/OpenACC/private", "h");
 
+  model_builder.add(openacc_model, "memory",   libopenacc_inc_dir + "/OpenACC/public", "h");
+
   model_builder.add(openacc_model, "openacc",  libopenacc_inc_dir + "/OpenACC", "h");
 
   return openacc_model;

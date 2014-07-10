@@ -102,33 +102,54 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   libopenacc_api.get_device_idx = func->node->symbol;
   assert(libopenacc_api.get_device_idx != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_copyin_regions_");
+  func = model.lookup<MDCG::Model::function_t>("acc_copyin");
   libopenacc_api.copyin = func->node->symbol;
   assert(libopenacc_api.copyin != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_copyin_regions_");
+  libopenacc_api.copyin_region = func->node->symbol;
+  assert(libopenacc_api.copyin_region != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_copyout_regions_");
+  func = model.lookup<MDCG::Model::function_t>("acc_copyout");
   libopenacc_api.copyout = func->node->symbol;
   assert(libopenacc_api.copyout != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_copyout_regions_");
+  libopenacc_api.copyout_region = func->node->symbol;
+  assert(libopenacc_api.copyout_region != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_create_regions_");
+  func = model.lookup<MDCG::Model::function_t>("acc_create");
   libopenacc_api.create = func->node->symbol;
   assert(libopenacc_api.create != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_create_regions_");
+  libopenacc_api.create_region = func->node->symbol;
+  assert(libopenacc_api.create_region != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_present_regions_");
+  func = model.lookup<MDCG::Model::function_t>("acc_present");
   libopenacc_api.present = func->node->symbol;
   assert(libopenacc_api.present != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_present_regions_");
+  libopenacc_api.present_region = func->node->symbol;
+  assert(libopenacc_api.present_region != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyin_regions_");
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyin");
   libopenacc_api.present_or_copyin = func->node->symbol;
-  assert(libopenacc_api.present_or_copyin!= NULL);
+  assert(libopenacc_api.present_or_copyin != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyin_regions_");
+  libopenacc_api.present_or_copyin_region = func->node->symbol;
+  assert(libopenacc_api.present_or_copyin_region != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyout_regions_");
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyout");
   libopenacc_api.present_or_copyout = func->node->symbol;
   assert(libopenacc_api.present_or_copyout != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_copyout_regions_");
+  libopenacc_api.present_or_copyout_region = func->node->symbol;
+  assert(libopenacc_api.present_or_copyout_region != NULL);
 
-  func = model.lookup<MDCG::Model::function_t>("acc_present_or_create_regions_");
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_create");
   libopenacc_api.present_or_create = func->node->symbol;
   assert(libopenacc_api.present_or_create != NULL);
+  func = model.lookup<MDCG::Model::function_t>("acc_present_or_create_regions_");
+  libopenacc_api.present_or_create_region = func->node->symbol;
+  assert(libopenacc_api.present_or_create_region != NULL);
 
   std::set<MDCG::Model::class_t> classes;
   model_builder.get(libopenacc_model).lookup<MDCG::Model::class_t>("acc_region_t_", classes);
@@ -194,18 +215,16 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
 
 namespace Compiler {
 
-void translateDataSections(
+void dataFromDataSections(
   const std::vector<Frontend::data_sections_t> & data_sections,
-  Directives::generic_clause_t<OpenACC::language_t> * clause,
-  LoopTrees * loop_tree
+  std::vector<KLT::Data<KLT_Annotation<OpenACC::language_t> > *> & datas,
+  std::vector<SgVariableSymbol *> & params
 ) {
   std::vector<Frontend::data_sections_t>::const_iterator it_data;
   for (it_data = data_sections.begin(); it_data != data_sections.end(); it_data++) {
     KLT::Data<KLT_Annotation<OpenACC::language_t> > * data = new KLT::Data<KLT_Annotation<OpenACC::language_t> >(it_data->first, it_data->second.size());
     assert(data != NULL);
-    loop_tree->addData(data);
-
-    data->annotations.push_back(KLT_Annotation<OpenACC::language_t>(clause));
+    datas.push_back(data);
 
     std::vector<Frontend::section_t>::const_iterator it_section;
     for (it_section = it_data->second.begin(); it_section != it_data->second.end(); it_section++) {
@@ -221,20 +240,41 @@ void translateDataSections(
       if (section.lower_bound != NULL) {
         var_refs = SageInterface::querySubTree<SgVarRefExp>(section.lower_bound);
         for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++)
-          loop_tree->addParameter((*it_var_ref)->get_symbol());
+          params.push_back((*it_var_ref)->get_symbol());
       }
       if (section.size != NULL) {
         var_refs = SageInterface::querySubTree<SgVarRefExp>(section.size);
         for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++)
-          loop_tree->addParameter((*it_var_ref)->get_symbol());
+          params.push_back((*it_var_ref)->get_symbol());
       }
       if (section.stride != NULL) {
         var_refs = SageInterface::querySubTree<SgVarRefExp>(section.stride);
         for (it_var_ref = var_refs.begin(); it_var_ref != var_refs.end(); it_var_ref++)
-          loop_tree->addParameter((*it_var_ref)->get_symbol());
+          params.push_back((*it_var_ref)->get_symbol());
       }
     }
   }
+}
+
+void translateDataSections(
+  const std::vector<Frontend::data_sections_t> & data_sections,
+  Directives::generic_clause_t<OpenACC::language_t> * clause,
+  LoopTrees * loop_tree
+) {
+  std::vector<KLT::Data<KLT_Annotation<OpenACC::language_t> > *> datas;
+  std::vector<SgVariableSymbol *> params;
+  dataFromDataSections(data_sections, datas, params);
+
+  std::vector<KLT::Data<KLT_Annotation<OpenACC::language_t> > *>::const_iterator it_data;
+  for (it_data = datas.begin(); it_data != datas.end(); it_data++) {
+    KLT::Data<KLT_Annotation<OpenACC::language_t> > * data = *it_data;
+    assert(data);
+    loop_tree->addData(data);
+    data->annotations.push_back(KLT_Annotation<OpenACC::language_t>(clause));
+  }
+  std::vector<SgVariableSymbol *>::const_iterator it_param;
+  for (it_param = params.begin(); it_param != params.end(); it_param++)
+    loop_tree->addParameter(*it_param);
 }
 
 void interpretClauses(
@@ -814,11 +854,17 @@ SgBasicBlock * buildRegionBlock(
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.region_execute, scope);
 
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyin, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyin_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyout, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyout_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.create, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.create_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyin, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyin_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyout, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyout_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_create, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_create_region, scope);
 
   driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_class->node->symbol, scope);
 
@@ -1016,26 +1062,26 @@ SgBasicBlock * buildRegionBlock(
         case OpenACC::language_t::e_acc_clause_copy:
         case OpenACC::language_t::e_acc_clause_copyin:
           assert(func_to_call == NULL);
-          func_to_call = libopenacc_api.copyin;
+          func_to_call = libopenacc_api.copyin_region;
           break;
         case OpenACC::language_t::e_acc_clause_copyout:
         case OpenACC::language_t::e_acc_clause_create:
           assert(func_to_call == NULL);
-          func_to_call = libopenacc_api.create;
+          func_to_call = libopenacc_api.create_region;
           break;
         case OpenACC::language_t::e_acc_clause_present:
           assert(func_to_call == NULL);
-          func_to_call = libopenacc_api.present;
+          func_to_call = libopenacc_api.present_region;
           break;
         case OpenACC::language_t::e_acc_clause_present_or_copy:
         case OpenACC::language_t::e_acc_clause_present_or_copyin:
           assert(func_to_call == NULL);
-          func_to_call = libopenacc_api.present_or_copyin;
+          func_to_call = libopenacc_api.present_or_copyin_region;
           break;
         case OpenACC::language_t::e_acc_clause_present_or_create:
         case OpenACC::language_t::e_acc_clause_present_or_copyout:
           assert(func_to_call == NULL);
-          func_to_call = libopenacc_api.present_or_create;
+          func_to_call = libopenacc_api.present_or_create_region;
           break;
         default:
           assert(false);
@@ -1081,12 +1127,12 @@ SgBasicBlock * buildRegionBlock(
         case OpenACC::language_t::e_acc_clause_copy:
         case OpenACC::language_t::e_acc_clause_copyout:
           assert(func_to_call == NULL);
-          func_to_call = libopenacc_api.copyout;
+          func_to_call = libopenacc_api.copyout_region;
           break;
         case OpenACC::language_t::e_acc_clause_present_or_copy:
         case OpenACC::language_t::e_acc_clause_present_or_copyout:
           assert(func_to_call == NULL);
-          func_to_call = libopenacc_api.present_or_copyout;
+          func_to_call = libopenacc_api.present_or_copyout_region;
           break;
         case OpenACC::language_t::e_acc_clause_copyin:
         case OpenACC::language_t::e_acc_clause_create:
@@ -1212,7 +1258,113 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
   for (it_directive = directives.begin(); it_directive != directives.end(); it_directive++) {
     Directives::directive_t<OpenACC::language_t> * directive = *it_directive;
     if (directive->construct->kind == OpenACC::language_t::e_acc_construct_data) {
-      //assert(false); /// \todo
+      Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_data> * data_construct =
+                 (Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_data> *)(directive->construct);
+
+      SgBasicBlock * data_block = isSgBasicBlock(data_construct->assoc_nodes.data_region);
+      if (data_block == NULL) {
+        assert(isSgPragmaDeclaration(data_construct->assoc_nodes.data_region));
+        assert(directive->successor_list.size() == 1);
+        assert(directive->successor_list[0].first == DLX::OpenACC::language_t::e_child_scope);
+        assert(directive->successor_list[0].second != NULL);
+        SgStatement * child_stmt = NULL;
+        if (directive->successor_list[0].second->construct->kind == OpenACC::language_t::e_acc_construct_parallel)
+          child_stmt = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(it_region->first->construct))->assoc_nodes.parallel_region;
+        else if (directive->successor_list[0].second->construct->kind == OpenACC::language_t::e_acc_construct_kernel)
+          child_stmt = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(it_region->first->construct))->assoc_nodes.kernel_region;
+        else assert(false);
+        assert(child_stmt != NULL);
+        data_block = SageBuilder::buildBasicBlock(child_stmt);
+      }
+      assert(data_block != NULL);
+
+      std::vector<Directives::generic_clause_t<OpenACC::language_t> *>::const_iterator it_clause;
+      for (it_clause = directive->clause_list.begin(); it_clause != directive->clause_list.end(); it_clause++) {
+        SgFunctionSymbol * call_before = NULL;
+        SgFunctionSymbol * call_after  = NULL;
+        std::vector<KLT::Data<KLT_Annotation<OpenACC::language_t> > *> datas;
+        std::vector<SgVariableSymbol *> params;
+        switch ((*it_clause)->kind) {
+          case OpenACC::language_t::e_acc_clause_copy:
+            call_before = compiler_modules.libopenacc_api.copyin;
+            call_after  = compiler_modules.libopenacc_api.copyout;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_copy> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_copyin:
+            call_before = compiler_modules.libopenacc_api.copyin;
+            call_after  = NULL;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_copyin> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_copyout:
+            call_before = compiler_modules.libopenacc_api.create;
+            call_after  = compiler_modules.libopenacc_api.copyout;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_copyout> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_create:
+            call_before = compiler_modules.libopenacc_api.create;
+            call_after  = NULL;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_create> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_present:
+            call_before = compiler_modules.libopenacc_api.present;
+            call_after  = NULL;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_present> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_present_or_copy:
+            call_before = compiler_modules.libopenacc_api.present_or_copyin;
+            call_after  = compiler_modules.libopenacc_api.present_or_copyout;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_present_or_copy> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_present_or_copyin:
+            call_before = compiler_modules.libopenacc_api.present_or_copyin;
+            call_after  = NULL;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_present_or_copyin> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_present_or_create:
+            call_before = compiler_modules.libopenacc_api.present_or_create;
+            call_after  = NULL;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_present_or_create> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          case OpenACC::language_t::e_acc_clause_present_or_copyout:
+            call_before = compiler_modules.libopenacc_api.present_or_create;
+            call_after  = compiler_modules.libopenacc_api.present_or_copyout;
+            dataFromDataSections(((Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_present_or_copyout> * )(*it_clause))->parameters.data_sections, datas, params);
+            break;
+          default:
+            assert(false);
+        }
+
+        std::vector<KLT::Data<KLT_Annotation<OpenACC::language_t> > *>::const_iterator it_data;
+        for (it_data = datas.begin(); it_data != datas.end(); it_data++) {
+          SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
+          for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+            array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
+          array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp);
+          SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
+          for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+            array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+          array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()));
+
+          if (call_before != NULL) {
+            SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+              SageBuilder::buildFunctionRefExp(call_before),
+              SageBuilder::buildExprListExp(array_ref_exp, array_size_exp)
+            ));
+            if (call_after != NULL) {
+              array_ref_exp = SageInterface::copyExpression(array_ref_exp);
+              array_size_exp = SageInterface::copyExpression(array_size_exp);
+            }
+            SageInterface::prependStatement(call, data_block);
+          }
+          if (call_after != NULL) {
+            SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+              SageBuilder::buildFunctionRefExp(call_after),
+              SageBuilder::buildExprListExp(array_ref_exp, array_size_exp)
+            ));
+            SageInterface::appendStatement(call, data_block);
+          }
+        }
+      }
     }
   }
 
