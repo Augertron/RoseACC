@@ -1280,9 +1280,9 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
         assert(directive->successor_list[0].second != NULL);
         SgStatement * child_stmt = NULL;
         if (directive->successor_list[0].second->construct->kind == OpenACC::language_t::e_acc_construct_parallel)
-          child_stmt = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(it_region->first->construct))->assoc_nodes.parallel_region;
+          child_stmt = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_parallel> *)(directive->successor_list[0].second->construct))->assoc_nodes.parallel_region;
         else if (directive->successor_list[0].second->construct->kind == OpenACC::language_t::e_acc_construct_kernel)
-          child_stmt = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(it_region->first->construct))->assoc_nodes.kernel_region;
+          child_stmt = ((Directives::construct_t<OpenACC::language_t, OpenACC::language_t::e_acc_construct_kernel> *)(directive->successor_list[0].second->construct))->assoc_nodes.kernel_region;
         else assert(false);
         assert(child_stmt != NULL);
         data_block = SageBuilder::buildBasicBlock(child_stmt);
