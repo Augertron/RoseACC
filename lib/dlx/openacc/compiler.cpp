@@ -272,9 +272,15 @@ void translateDataSections(
   std::vector<KLT::Data<KLT_Annotation<OpenACC::language_t> > *>::const_iterator it_data;
   for (it_data = datas.begin(); it_data != datas.end(); it_data++) {
     KLT::Data<KLT_Annotation<OpenACC::language_t> > * data = *it_data;
-    assert(data);
-    loop_tree->addData(data);
-    data->annotations.push_back(KLT_Annotation<OpenACC::language_t>(clause));
+    assert(data != NULL);
+    if (clause->kind == OpenACC::language_t::e_acc_clause_private || clause->kind == OpenACC::language_t::e_acc_clause_firstprivate) {
+      assert(data->getSections().empty()); // added this here so that it fail for private array...
+      loop_tree->addScalar(data->getVariableSymbol());
+    }
+    else {
+      loop_tree->addData(data);
+      data->annotations.push_back(KLT_Annotation<OpenACC::language_t>(clause));
+    }
   }
   std::vector<SgVariableSymbol *>::const_iterator it_param;
   for (it_param = params.begin(); it_param != params.end(); it_param++)
@@ -375,12 +381,16 @@ void interpretClauses(
       }
       case OpenACC::language_t::e_acc_clause_private:
       {
-        assert(false); /// \todo
+        Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_private> * clause =
+                 (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_private> *)(*it_clause);
+        translateDataSections(clause->parameters.data_sections, clause, loop_tree);
         break;
       }
       case OpenACC::language_t::e_acc_clause_firstprivate:
       {
-        assert(false); /// \todo
+        Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_firstprivate> * clause =
+                 (Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_firstprivate> *)(*it_clause);
+        translateDataSections(clause->parameters.data_sections, clause, loop_tree);
         break;
       }
       case OpenACC::language_t::e_acc_clause_devices:
@@ -937,9 +947,13 @@ SgBasicBlock * buildRegionBlock(
     )), result);
 
     // nbr_elements_exp : Number of data elements
-    SgExpression * nbr_elements_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
-    for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
-      nbr_elements_exp = SageBuilder::buildMultiplyOp(nbr_elements_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+    SgExpression * nbr_elements_exp = NULL;
+    if ((*it_data)->getSections().size() > 0) {
+      nbr_elements_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
+      for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+        nbr_elements_exp = SageBuilder::buildMultiplyOp(nbr_elements_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+    }
+    else nbr_elements_exp = SageBuilder::buildIntVal(1);
 
     // region->data['data_cnt'].nbr_elements = 'nbr_elements_exp'
     SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
@@ -964,13 +978,21 @@ SgBasicBlock * buildRegionBlock(
       SageBuilder::buildDotExp(SageInterface::copyExpression(data_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_data_dominant_dimension->node->symbol)), dominant_dimension_exp
     )), result);
 
-    // nbr_elements_dominant_dimension_exp : 
-    SgExpression * nbr_elements_dominant_dimension_exp = SageInterface::copyExpression((*it_data)->getSections()[dominant_dimension].size);
+    if ((*it_data)->getSections().size() > 0) {
+      // nbr_elements_dominant_dimension_exp : 
+      SgExpression * nbr_elements_dominant_dimension_exp = SageInterface::copyExpression((*it_data)->getSections()[dominant_dimension].size);
 
-    // region->data['data_cnt'].nbr_elements_dominant_dimension = 'nbr_elements_dominant_dimension_exp'
-    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
-      SageBuilder::buildDotExp(data_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_data_nbr_elements_dominant_dimension->node->symbol)), nbr_elements_dominant_dimension_exp
-    )), result);
+      // region->data['data_cnt'].nbr_elements_dominant_dimension = 'nbr_elements_dominant_dimension_exp'
+      SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+        SageBuilder::buildDotExp(data_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_data_nbr_elements_dominant_dimension->node->symbol)), nbr_elements_dominant_dimension_exp
+      )), result);
+    }
+    else {
+      // region->data['data_cnt'].nbr_elements_dominant_dimension = 0
+      SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+        SageBuilder::buildDotExp(data_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_data_nbr_elements_dominant_dimension->node->symbol)), SageBuilder::buildIntVal(0)
+      )), result);
+    }
   }
 
   const std::vector<LoopTrees::node_t *> & trees = loop_trees->getTrees();
@@ -1088,30 +1110,29 @@ SgBasicBlock * buildRegionBlock(
           assert(func_to_call == NULL);
           func_to_call = libopenacc_api.present_or_create_region;
           break;
+        case OpenACC::language_t::e_acc_clause_private:
+        case OpenACC::language_t::e_acc_clause_firstprivate:
+          break;
         default:
           assert(false);
       }
     }
 
-    assert(func_to_call != NULL);
+    if (func_to_call != NULL) {
+      SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
+      for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+        array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
+      array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp);
+      SgExpression * array_size_exp = SageBuilder::buildSizeOfOp((*it_data)->getBaseType());
+      for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+        array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
 
-    SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
-    for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
-      array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
-    array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp);
-    SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
-    for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
-      array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
-
-    SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
-      SageBuilder::buildFunctionRefExp(func_to_call),
-      SageBuilder::buildExprListExp(
-        SageBuilder::buildVarRefExp(region_sym),
-        array_ref_exp,
-        SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()))
-      )
-    ));
-    SageInterface::appendStatement(call, result);
+      SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
+        SageBuilder::buildFunctionRefExp(func_to_call),
+        SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(region_sym), array_ref_exp, array_size_exp)
+      ));
+      SageInterface::appendStatement(call, result);
+    }
   }
 
   // build call : acc_region_execute(region);
@@ -1144,6 +1165,8 @@ SgBasicBlock * buildRegionBlock(
         case OpenACC::language_t::e_acc_clause_present:
         case OpenACC::language_t::e_acc_clause_present_or_copyin:
         case OpenACC::language_t::e_acc_clause_present_or_create:
+        case OpenACC::language_t::e_acc_clause_private:
+        case OpenACC::language_t::e_acc_clause_firstprivate:
           break;
         default:
           assert(false);
@@ -1156,10 +1179,9 @@ SgBasicBlock * buildRegionBlock(
     for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
       array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
     array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp);
-    SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
-    for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+    SgExpression * array_size_exp = SageBuilder::buildSizeOfOp((*it_data)->getBaseType());
+    for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
       array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
-    array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()));
 
     SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(
       SageBuilder::buildFunctionRefExp(func_to_call),
@@ -1353,10 +1375,9 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
           for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
             array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
           array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp);
-          SgExpression * array_size_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
-          for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+          SgExpression * array_size_exp = SageBuilder::buildSizeOfOp((*it_data)->getBaseType());
+          for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
             array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
-          array_size_exp = SageBuilder::buildMultiplyOp(array_size_exp, SageBuilder::buildSizeOfOp((*it_data)->getBaseType()));
 
           if (call_before != NULL) {
             SgExprStatement * call = SageBuilder::buildExprStatement(SageBuilder::buildFunctionCallExp(

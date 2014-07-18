@@ -373,7 +373,10 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   SgLocatedNode * directive_node,
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_private> * clause
 ) {
-  return false;
+  DLX::Frontend::Parser parser(directive_str, directive_node);
+  bool res = parser.parse_list(clause->parameters.data_sections, '(', ')', ',');
+  if (res) directive_str = parser.getDirectiveString();
+  return res;
 }
 
 template <>
@@ -383,7 +386,10 @@ bool Frontend<OpenACC::language_t>::parseClauseParameters<OpenACC::language_t::e
   SgLocatedNode * directive_node,
   Directives::clause_t<OpenACC::language_t, OpenACC::language_t::e_acc_clause_firstprivate> * clause
 ) {
-  return false;
+  DLX::Frontend::Parser parser(directive_str, directive_node);
+  bool res = parser.parse_list(clause->parameters.data_sections, '(', ')', ',');
+  if (res) directive_str = parser.getDirectiveString();
+  return res;
 }
 
 template <>

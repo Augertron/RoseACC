@@ -267,13 +267,13 @@ struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::
 template <>
 template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_private> {
-  // empty
+  std::vector<Frontend::data_sections_t> data_sections;
 };
 
 template <>
 template <>
 struct generic_clause_t<OpenACC::language_t>::parameters_t<OpenACC::language_t::e_acc_clause_firstprivate> {
-  // empty
+  std::vector<Frontend::data_sections_t> data_sections;
 };
 
 template <>

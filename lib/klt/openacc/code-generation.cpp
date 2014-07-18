@@ -166,7 +166,6 @@ SgStatement * generateStatement<
       subscripts.push_back(arr_ref->get_rhs_operand_i());
       arr_ref = isSgPntrArrRefExp(arr_ref->get_parent());
     }
-    assert(top_arr_ref != NULL);
     assert(subscripts.size() == data->getSections().size());
 
     if (data->isDistributed()) {
@@ -180,6 +179,7 @@ SgStatement * generateStatement<
     }
 
     if (flatten_array_ref && data->getSections().size() > 1) {
+      assert(top_arr_ref != NULL);
       std::vector<SgExpression *>::const_iterator it_subscript = subscripts.begin();
       SgExpression * subscript = SageInterface::copyExpression(*it_subscript);
       it_subscript++;
@@ -190,7 +190,6 @@ SgStatement * generateStatement<
         subscript = SageBuilder::buildAddOp(subscript, SageInterface::copyExpression(*it_subscript));
         cnt++; it_subscript++;
       }
-
       SageInterface::replaceExpression(top_arr_ref, SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(var_ref), subscript), true);
     }
   }
