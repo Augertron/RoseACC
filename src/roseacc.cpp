@@ -43,10 +43,9 @@ int main(int argc, char ** argv) {
 
   std::string cg_prefix;
   enum descriptor_format_e {
-    e_unknown,
     e_static_data,
     e_database
-  } descriptor_format = e_unknown;
+  } descriptor_format = e_static_data;
   for (it_str = roseacc_args.begin(); it_str != roseacc_args.end(); it_str++) {
     if (it_str->find("desc_format") == 0) {
       assert(descriptor_format == e_unknown);
