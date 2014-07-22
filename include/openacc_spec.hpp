@@ -18,7 +18,7 @@
 #include "MFB/Sage/driver.hpp"
 
 #include "MDCG/model-builder.hpp"
-#include "MDCG/code-generator.hpp"
+#include "MDCG/static-initializer.hpp"
 
 #include "MFB/Sage/variable-declaration.hpp"
 

@@ -40,7 +40,7 @@ compiler_modules_t::compiler_modules_t(
 ) :
   driver(project),
   model_builder(driver),
-  codegen(driver),
+  static_initializer(driver),
   generator(driver, ocl_kernels_file_),
   cg_config(
     new KLT::LoopMapper<Annotation, Language, Runtime>(),

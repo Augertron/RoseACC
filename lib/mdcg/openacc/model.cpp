@@ -15,7 +15,7 @@ const char * debug_flag = DEBUG_FLAG;
 #endif
 
 SgExpression * TileDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -61,7 +61,7 @@ SgExpression * TileDesc::createFieldInitializer(
 }
 
 SgExpression * LoopDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -84,7 +84,7 @@ SgExpression * LoopDesc::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createArrayPointer<TileDesc>(
+      return static_initializer.createArrayPointer<TileDesc>(
                type->node->base_class,
                input.tiles.size(),
                input.tiles.begin(),
@@ -101,7 +101,7 @@ SgExpression * LoopDesc::createFieldInitializer(
 size_t KernelVersion::version_cnt;
 
 SgExpression * KernelVersion::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -137,7 +137,7 @@ SgExpression * KernelVersion::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createArrayPointer<LoopDesc>(
+      return static_initializer.createArrayPointer<LoopDesc>(
                type->node->base_class,
                input->loops.size(),
                input->loops.begin(),
@@ -168,7 +168,7 @@ SgExpression * KernelVersion::createFieldInitializer(
 
 template <typename T>
 SgExpression * createIndexList(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   const std::list<T *> & input,
   const std::vector<T *> & reference,
   std::string name,
@@ -186,7 +186,7 @@ SgExpression * createIndexList(
     expr_list->append_expression(SageBuilder::buildIntVal(idx));
   }
 
-  SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+  SgGlobal * global_scope_across_files = static_initializer.getDriver().project->get_globalScopeAcrossFiles();
   assert(global_scope_across_files != NULL);
   SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
   assert(size_t_symbol != NULL);
@@ -195,13 +195,13 @@ SgExpression * createIndexList(
   size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input.size()));
 
   MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(name, size_t_type, init, NULL, file_id, false, true);
-  MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+  MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = static_initializer.getDriver().build<SgVariableDeclaration>(var_decl_desc);
 
   return SageBuilder::buildVarRefExp(var_decl_res.symbol);
 }
 
 SgExpression * KernelDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -225,7 +225,7 @@ SgExpression * KernelDesc::createFieldInitializer(
       /// size_t * param_ids;
       std::ostringstream decl_name;
         decl_name << "param_ids_" << input;
-      return createIndexList<SgVariableSymbol>(codegen, args.parameters, input->getLoopTree().getParameters(), decl_name.str(), file_id);
+      return createIndexList<SgVariableSymbol>(static_initializer, args.parameters, input->getLoopTree().getParameters(), decl_name.str(), file_id);
     }
     case 4:
       /// size_t num_scalars;
@@ -235,7 +235,7 @@ SgExpression * KernelDesc::createFieldInitializer(
       /// size_t * scalar_ids;
       std::ostringstream decl_name;
         decl_name << "scalar_ids_" << input;
-      return createIndexList<SgVariableSymbol>(codegen, args.scalars, input->getLoopTree().getScalars(), decl_name.str(), file_id);
+      return createIndexList<SgVariableSymbol>(static_initializer, args.scalars, input->getLoopTree().getScalars(), decl_name.str(), file_id);
     }
     case 6:
       /// size_t num_datas;
@@ -245,7 +245,7 @@ SgExpression * KernelDesc::createFieldInitializer(
       /// size_t * data_ids;
       std::ostringstream decl_name;
         decl_name << "data_ids_" << input;
-      return createIndexList< ::KLT::Data<Annotation> >(codegen, args.datas, input->getLoopTree().getDatas(), decl_name.str(), file_id);
+      return createIndexList< ::KLT::Data<Annotation> >(static_initializer, args.datas, input->getLoopTree().getDatas(), decl_name.str(), file_id);
     }
     case 8:
     {
@@ -264,7 +264,7 @@ SgExpression * KernelDesc::createFieldInitializer(
       for (it = input->getLoops().begin(); it != input->getLoops().end(); it++)
         expr_list->append_expression(SageBuilder::buildIntVal(input->getLoopTree().getLoopID(*it)));
 
-      SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+      SgGlobal * global_scope_across_files = static_initializer.getDriver().project->get_globalScopeAcrossFiles();
       assert(global_scope_across_files != NULL);
       SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
       assert(size_t_symbol != NULL);
@@ -273,7 +273,7 @@ SgExpression * KernelDesc::createFieldInitializer(
       size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input->getLoops().size()));
 
       MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), size_t_type, init, NULL, file_id, false, true);
-      MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+      MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = static_initializer.getDriver().build<SgVariableDeclaration>(var_decl_desc);
 
       return SageBuilder::buildVarRefExp(var_decl_res.symbol);
     }
@@ -290,7 +290,7 @@ SgExpression * KernelDesc::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createArrayPointer<KernelVersion>(
+      return static_initializer.createArrayPointer<KernelVersion>(
                type->node->base_class,
                versions.size(),
                versions.begin(),
@@ -310,7 +310,7 @@ SgExpression * KernelDesc::createFieldInitializer(
 }
 
 SgExpression * KernelWithDepsDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -328,7 +328,7 @@ SgExpression * KernelWithDepsDesc::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createPointer<KernelDesc>(type->node->base_class, input, file_id, decl_name.str());
+      return static_initializer.createPointer<KernelDesc>(type->node->base_class, input, file_id, decl_name.str());
     }
     case 1:
       /// size_t num_dependencies;
@@ -342,7 +342,7 @@ SgExpression * KernelWithDepsDesc::createFieldInitializer(
 }
 
 SgExpression * KernelGroupDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -361,7 +361,7 @@ SgExpression * KernelGroupDesc::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createArrayPointer<KernelWithDepsDesc>(
+      return static_initializer.createArrayPointer<KernelWithDepsDesc>(
                type->node->base_class,
                input.size(),
                input.begin(),
@@ -376,7 +376,7 @@ SgExpression * KernelGroupDesc::createFieldInitializer(
 }
 
 SgExpression * createArrayOfTypeSize(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   const std::vector<SgVariableSymbol *> & input,
   std::string array_name,
   unsigned file_id
@@ -388,7 +388,7 @@ SgExpression * createArrayOfTypeSize(
   for (it = input.begin(); it != input.end(); it++)
     expr_list->append_expression(SageBuilder::buildSizeOfOp((*it)->get_type()));
 
-  SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+  SgGlobal * global_scope_across_files = static_initializer.getDriver().project->get_globalScopeAcrossFiles();
   assert(global_scope_across_files != NULL);
   SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
   assert(size_t_symbol != NULL);
@@ -397,7 +397,7 @@ SgExpression * createArrayOfTypeSize(
   size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input.size()));
 
   MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(array_name, size_t_type, init, NULL, file_id, false, true);
-  MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+  MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = static_initializer.getDriver().build<SgVariableDeclaration>(var_decl_desc);
 
   return SageBuilder::buildVarRefExp(var_decl_res.symbol);
 }
@@ -405,7 +405,7 @@ SgExpression * createArrayOfTypeSize(
 size_t DistributedDataDesc::data_cnt;
 
 SgExpression * DistributedDataDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -461,7 +461,7 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
           for (it = input->getDistribution().portions.begin(); it != input->getDistribution().portions.end(); it++)
             expr_list->append_expression(SageBuilder::buildIntVal(*it));
 
-          SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+          SgGlobal * global_scope_across_files = static_initializer.getDriver().project->get_globalScopeAcrossFiles();
           assert(global_scope_across_files != NULL);
           SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
           assert(size_t_symbol != NULL);
@@ -470,7 +470,7 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
           size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(input->getDistribution().portions.size()));
 
           MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), size_t_type, init, NULL, file_id, false, true);
-          MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+          MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = static_initializer.getDriver().build<SgVariableDeclaration>(var_decl_desc);
 
           return SageBuilder::buildVarRefExp(var_decl_res.symbol);
         }
@@ -501,7 +501,7 @@ SgExpression * DistributedDataDesc::createFieldInitializer(
 size_t SplittedLoopDesc::loop_cnt;
 
 SgExpression * SplittedLoopDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -567,7 +567,7 @@ SgExpression * SplittedLoopDesc::createFieldInitializer(
             expr_list->append_expression(*it);
           }
 
-          SgGlobal * global_scope_across_files = codegen.getDriver().project->get_globalScopeAcrossFiles();
+          SgGlobal * global_scope_across_files = static_initializer.getDriver().project->get_globalScopeAcrossFiles();
           assert(global_scope_across_files != NULL);
           SgTypedefSymbol * size_t_symbol = SageInterface::lookupTypedefSymbolInParentScopes("size_t", global_scope_across_files);
           assert(size_t_symbol != NULL);
@@ -576,7 +576,7 @@ SgExpression * SplittedLoopDesc::createFieldInitializer(
           size_t_type = SageBuilder::buildArrayType(size_t_type, SageBuilder::buildIntVal(split_clause->parameters.portions.size()));
 
           MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), size_t_type, init, NULL, file_id, false, true);
-          MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+          MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = static_initializer.getDriver().build<SgVariableDeclaration>(var_decl_desc);
 
           return SageBuilder::buildVarRefExp(var_decl_res.symbol);
         }
@@ -612,7 +612,7 @@ size_t RegionDesc::current_region;
 LoopTrees * RegionDesc::current_loop_tree;
 
 SgExpression * RegionDesc::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -648,7 +648,7 @@ SgExpression * RegionDesc::createFieldInitializer(
                init, NULL, file_id, false, true
         );
 
-        MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+        MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = static_initializer.getDriver().build<SgVariableDeclaration>(var_decl_desc);
 
         return SageBuilder::buildVarRefExp(var_decl_res.symbol);
       }
@@ -662,7 +662,7 @@ SgExpression * RegionDesc::createFieldInitializer(
       ///  size_t * size_params;
       std::ostringstream decl_name;
         decl_name << "parameters_size_" << input.id;
-      return createArrayOfTypeSize(codegen, input.loop_tree->getParameters(), decl_name.str(), file_id);
+      return createArrayOfTypeSize(static_initializer, input.loop_tree->getParameters(), decl_name.str(), file_id);
     }
     case 6:
       /// size_t num_scalars;
@@ -672,7 +672,7 @@ SgExpression * RegionDesc::createFieldInitializer(
       /// size_t * size_scalars;
       std::ostringstream decl_name;
         decl_name << "scalars_size_" << input.id;
-      return createArrayOfTypeSize(codegen, input.loop_tree->getScalars(), decl_name.str(), file_id);
+      return createArrayOfTypeSize(static_initializer, input.loop_tree->getScalars(), decl_name.str(), file_id);
     }
     case 8:
       /// size_t num_datas;
@@ -691,7 +691,7 @@ SgExpression * RegionDesc::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createArrayPointer<KernelGroupDesc>(
+      return static_initializer.createArrayPointer<KernelGroupDesc>(
                type->node->base_class,
                input.kernel_lists.size(),
                input.kernel_lists.begin(),
@@ -724,7 +724,7 @@ SgExpression * RegionDesc::createFieldInitializer(
 
       MFB::Sage<SgVariableDeclaration>::object_desc_t var_decl_desc(decl_name.str(), sg_type,init, NULL, file_id, false, true);
 
-      MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = codegen.getDriver().build<SgVariableDeclaration>(var_decl_desc);
+      MFB::Sage<SgVariableDeclaration>::build_result_t var_decl_res = static_initializer.getDriver().build<SgVariableDeclaration>(var_decl_desc);
 
       return SageBuilder::buildVarRefExp(var_decl_res.symbol); /// \todo multidev
     }
@@ -754,7 +754,7 @@ SgExpression * RegionDesc::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createArrayPointer<DistributedDataDesc>(
+      return static_initializer.createArrayPointer<DistributedDataDesc>(
                type->node->base_class,
                data.size(),
                data.begin(),
@@ -788,7 +788,7 @@ SgExpression * RegionDesc::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createArrayPointer<SplittedLoopDesc>(
+      return static_initializer.createArrayPointer<SplittedLoopDesc>(
                type->node->base_class,
                loops.size(),
                loops.begin(),
@@ -803,7 +803,7 @@ SgExpression * RegionDesc::createFieldInitializer(
 }
 
 SgExpression * CompilerData::createFieldInitializer(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   MDCG::Model::field_t element,
   unsigned field_id,
   const input_t & input,
@@ -833,7 +833,7 @@ SgExpression * CompilerData::createFieldInitializer(
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
       type = type->node->base_type;
       assert(type != NULL && type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-      return codegen.createPointerArrayPointer<RegionDesc>(
+      return static_initializer.createPointerArrayPointer<RegionDesc>(
                type->node->base_class,
                input.regions.size(),
                input.regions.begin(),

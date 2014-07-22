@@ -9,11 +9,12 @@
 namespace MDCG {
 
 namespace OpenACC {
+
 struct TileDesc {
   typedef Runtime::tile_desc_t input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -27,7 +28,7 @@ struct LoopDesc {
   typedef Runtime::a_loop input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -43,7 +44,7 @@ struct KernelVersion {
   typedef Kernel::a_kernel * input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -54,7 +55,7 @@ struct KernelVersion {
 };
 
 SgExpression * createArrayOfTypeSize(
-  const MDCG::CodeGenerator & codegen,
+  const MDCG::StaticInitializer & static_initializer,
   const std::list<SgVariableSymbol *> & input,
   std::string array_name,
   unsigned file_id
@@ -64,7 +65,7 @@ struct KernelDesc {
   typedef Kernel * input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -78,7 +79,7 @@ struct KernelWithDepsDesc {
   typedef Kernel * input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -92,7 +93,7 @@ struct KernelGroupDesc {
   typedef std::list< Kernel *> input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -108,7 +109,7 @@ struct DistributedDataDesc {
   typedef ::KLT::Data<Annotation> * input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -124,7 +125,7 @@ struct SplittedLoopDesc {
   typedef LoopTrees::loop_t * input_t;
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -147,7 +148,7 @@ struct RegionDesc {
   };
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,
@@ -166,7 +167,7 @@ struct CompilerData {
   };
 
   static SgExpression * createFieldInitializer(
-    const MDCG::CodeGenerator & codegen,
+    const MDCG::StaticInitializer & static_initializer,
     MDCG::Model::field_t element,
     unsigned field_id,
     const input_t & input,

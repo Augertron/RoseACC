@@ -14,7 +14,7 @@ struct compiler_modules_t {
   MFB::KLT_Driver driver;
 
   MDCG::ModelBuilder model_builder;
-  MDCG::CodeGenerator codegen;
+  MDCG::StaticInitializer static_initializer;
   KLT::Generator<Annotation, Language, Runtime, MFB::KLT_Driver> generator;
 
   KLT::CG_Config<Annotation, Language, Runtime> cg_config;

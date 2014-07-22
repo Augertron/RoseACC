@@ -48,7 +48,6 @@ int main(int argc, char ** argv) {
   } descriptor_format = e_static_data;
   for (it_str = roseacc_args.begin(); it_str != roseacc_args.end(); it_str++) {
     if (it_str->find("desc_format") == 0) {
-      assert(descriptor_format == e_unknown);
       std::string format = it_str->substr(12);
       if (format.compare("static_data") == 0)
         descriptor_format = e_static_data;
@@ -62,8 +61,7 @@ int main(int argc, char ** argv) {
     }
     else assert(false);
   }
-  assert(descriptor_format != e_unknown);
-  assert(descriptor_format == e_static_data);
+  assert(descriptor_format == e_static_data); // DB storage broken...
 
   if (cg_prefix.empty()) {
     assert(project->get_fileList().size() == 1);
@@ -97,7 +95,7 @@ int main(int argc, char ** argv) {
 
   switch (descriptor_format) {
     case e_static_data:
-      compiler_modules.codegen.addDeclaration<MDCG::OpenACC::CompilerData>(
+      compiler_modules.static_initializer.addDeclaration<MDCG::OpenACC::CompilerData>(
                                    compiler_modules.compiler_data_class,
                                    compiler_modules.comp_data,
                                    compiler_modules.host_data_file_id,
