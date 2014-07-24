@@ -26,7 +26,7 @@ SgExpression * TileDesc::createFieldInitializer(
       /// size_t id;
       return SageBuilder::buildIntVal(input.id);
     case 1:
-      /// enum acc_tile_kind_e kind;
+      /// enum acc_tile_kind_e kind; \todo Lookup enumerators and instantiate the good one...
       switch (input.kind) {
         case ::KLT::Runtime::OpenACC::e_static_tile:
           return SageBuilder::buildIntVal(4);
