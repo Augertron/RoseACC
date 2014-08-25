@@ -46,6 +46,7 @@ int main(int argc, char ** argv) {
     e_static_data,
     e_database
   } descriptor_format = e_static_data;
+  bool compile_switch;
   for (it_str = roseacc_args.begin(); it_str != roseacc_args.end(); it_str++) {
     if (it_str->find("desc_format") == 0) {
       std::string format = it_str->substr(12);
@@ -55,16 +56,27 @@ int main(int argc, char ** argv) {
         descriptor_format = e_database;
       else assert(false);
     }
-    else if (it_str->compare("cg_prefix") == 0) {
+    else if (it_str->find("cg_prefix") == 0) {
       assert(cg_prefix.empty());
       cg_prefix = it_str->substr(10);
     }
-    else assert(false);
+    else if (it_str->find("compile") == 0) {
+      std::string compile_switch_str = it_str->substr(8);
+      if (compile_switch_str.compare("true") == 0)
+        compile_switch = true;
+      else if (compile_switch_str.compare("false") == 0)
+        compile_switch = false;
+      else assert(false);
+    }
+    else {
+      std::cout << "RoseACC option : \"" << *it_str << "\" unrecognized." << std::endl;
+      assert(false);
+    }
   }
   assert(descriptor_format == e_static_data); // DB storage broken...
 
   if (cg_prefix.empty()) {
-    assert(project->get_fileList().size() == 1);
+//    assert(project->get_fileList().size() == 1);
     SgSourceFile * target_file = isSgSourceFile(project->get_fileList()[0]);
     assert(target_file != NULL);
     cg_prefix = target_file->get_sourceFileNameWithoutPath();
@@ -87,11 +99,14 @@ int main(int argc, char ** argv) {
   DLX::OpenACC::compiler_modules_t compiler_modules(project, ocl_kernels_file, kernels_desc_file, versions_db_file, openacc_inc_path, openacc_lib_path, kernels_dir);
 
   DLX::Frontend::Frontend<DLX::OpenACC::language_t> frontend;
-  assert(frontend.parseDirectives(project));
+  bool res = frontend.parseDirectives(project);
+  assert(res);
+
 //frontend.toDot(std::cout);
 
   DLX::Compiler::Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t> compiler(compiler_modules);
-  assert(compiler.compile(frontend.directives, frontend.graph_entry, frontend.graph_final));
+  res = compiler.compile(frontend.directives, frontend.graph_entry, frontend.graph_final);
+  assert(res);
 
   switch (descriptor_format) {
     case e_static_data:
@@ -108,8 +123,14 @@ int main(int argc, char ** argv) {
   /// \todo MDCG::OpenACC::CompilerData::storeToDB(compiler_modules.versions_db_file, compiler_modules.comp_data);
       break;
     default:
+      res = false;
       assert(false);
   }
-  return backend(project);
+  if (compile_switch)
+    return res && backend(project);
+  else {
+    project->unparse();
+    return res;
+  }
 }
 
