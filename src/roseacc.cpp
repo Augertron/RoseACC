@@ -76,7 +76,7 @@ int main(int argc, char ** argv) {
   assert(descriptor_format == e_static_data); // DB storage broken...
 
   if (cg_prefix.empty()) {
-    assert(project->get_fileList().size() == 1);
+//    assert(project->get_fileList().size() == 1);
     SgSourceFile * target_file = isSgSourceFile(project->get_fileList()[0]);
     assert(target_file != NULL);
     cg_prefix = target_file->get_sourceFileNameWithoutPath();
@@ -126,11 +126,12 @@ int main(int argc, char ** argv) {
       res = false;
       assert(false);
   }
-  if (compile_switch)
-    return res && backend(project);
-  else {
+  if (res && compile_switch)
+    return backend(project);
+  else if (res && !compile_switch) {
     project->unparse();
-    return res;
+    return 0;
   }
+  else return 1;
 }
 
