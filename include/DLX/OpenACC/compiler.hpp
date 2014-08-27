@@ -29,6 +29,9 @@ struct compiler_modules_t {
   MDCG::OpenACC::CompilerData::input_t comp_data;
 
   struct libopenacc_api_t {
+    SgFunctionSymbol * get_device_type;
+    SgFunctionSymbol * get_device_num;
+
     SgFunctionSymbol * push_data_environment;
     SgFunctionSymbol * pop_data_environment;
 

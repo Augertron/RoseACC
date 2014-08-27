@@ -82,6 +82,14 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   const MDCG::Model::model_t & model = model_builder.get(libopenacc_model);
   MDCG::Model::function_t func;
 
+  func = model.lookup<MDCG::Model::function_t>("acc_get_device_type");
+  libopenacc_api.get_device_type = func->node->symbol;
+  assert(libopenacc_api.get_device_type != NULL);
+
+  func = model.lookup<MDCG::Model::function_t>("acc_get_device_num");
+  libopenacc_api.get_device_num = func->node->symbol;
+  assert(libopenacc_api.get_device_num != NULL);
+
   func = model.lookup<MDCG::Model::function_t>("acc_push_data_environment");
   libopenacc_api.push_data_environment = func->node->symbol;
   assert(libopenacc_api.push_data_environment != NULL);
@@ -636,7 +644,11 @@ struct device_config_t {
   SgExpression * vector_length;
 };
 
-bool getDevicesConfig(LoopTrees * loop_trees, std::vector<struct device_config_t> & device_configs) {
+bool getDevicesConfig(
+  LoopTrees * loop_trees,
+  std::vector<struct device_config_t> & device_configs,
+ const DLX::OpenACC::compiler_modules_t::libopenacc_api_t & libopenacc_api
+) {
 
   assert(device_configs.size() == 0);
 
@@ -741,8 +753,14 @@ bool getDevicesConfig(LoopTrees * loop_trees, std::vector<struct device_config_t
   else {
     device_configs.resize(1);
 
-    device_configs[0].device_kind = NULL;
-    device_configs[0].device_num = NULL;
+    device_configs[0].device_kind = SageBuilder::buildFunctionCallExp(
+                                      libopenacc_api.get_device_type,
+                                      SageBuilder::buildExprListExp()
+                                    );
+    device_configs[0].device_num = SageBuilder::buildFunctionCallExp(
+                                     libopenacc_api.get_device_num,
+                                     SageBuilder::buildExprListExp(SageBuilder::buildIntVal(0))
+                                   );
 
     if (num_gangs[0] != NULL) {
       assert(num_gangs[0]->parameters.exp.size() == 1);
@@ -1243,7 +1261,7 @@ bool Compiler<DLX::OpenACC::language_t, DLX::OpenACC::compiler_modules_t>::compi
   for (it_region = regions.begin(); it_region != regions.end(); it_region++, region_cnt++) {
     /// Get devices configuration from LoopTrees annotation
     std::vector<struct device_config_t> device_configs;
-    assert(getDevicesConfig(it_region->second, device_configs));
+    assert(getDevicesConfig(it_region->second, device_configs, compiler_modules.libopenacc_api));
 
     /// Build associated input for MDCG model
     MDCG::OpenACC::RegionDesc::input_t & input_region = compiler_modules.comp_data.regions[region_cnt];
