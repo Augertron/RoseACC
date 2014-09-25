@@ -1,8 +1,6 @@
 
 lib_LTLIBRARIES=libMDCG-openacc.la
 
-AM_CXXFLAGS=-g -O0
-
 libMDCG_openacc_la_SOURCES= \
   model.cpp
 libMDCG_openacc_la_CXXFLAGS= \

@@ -1,9 +1,6 @@
 
 lib_LTLIBRARIES=libDLX-openacc.la
 
-CXXFLAGS=
-AM_CXXFLAGS=
-
 libDLX_openacc_la_SOURCES= \
   language.cpp \
   directives.cpp constructs.cpp clauses.cpp \

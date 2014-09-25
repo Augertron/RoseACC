@@ -1,8 +1,6 @@
 
 lib_LTLIBRARIES=libKLT-openacc.la
 
-AM_CXXFLAGS=-g -O0
-
 libKLT_openacc_la_SOURCES= \
   dlx-openacc.cpp \
   loop-tiler.cpp \
