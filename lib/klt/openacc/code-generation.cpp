@@ -178,20 +178,18 @@ SgStatement * generateStatement<
       subscripts[distributed_dimension] = SageBuilder::buildSubtractOp(subscripts[distributed_dimension], SageBuilder::buildVarRefExp(it_data_offset->second));
     }
 
-    if (flatten_array_ref && data->getSections().size() > 1) {
-      assert(top_arr_ref != NULL);
-      std::vector<SgExpression *>::const_iterator it_subscript = subscripts.begin();
-      SgExpression * subscript = SageInterface::copyExpression(*it_subscript);
-      it_subscript++;
-      size_t cnt = 1;
-      while (it_subscript != subscripts.end()) {
-        SgExpression * dim_size = SageInterface::copyExpression(data->getSections()[cnt].size);
-        subscript = SageBuilder::buildMultiplyOp(subscript, dim_size);
-        subscript = SageBuilder::buildAddOp(subscript, SageInterface::copyExpression(*it_subscript));
-        cnt++; it_subscript++;
-      }
-      SageInterface::replaceExpression(top_arr_ref, SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(var_ref), subscript), true);
+    assert(top_arr_ref != NULL);
+    std::vector<SgExpression *>::const_iterator it_subscript = subscripts.begin();
+    SgExpression * subscript = SageInterface::copyExpression(*it_subscript);
+    it_subscript++;
+    size_t cnt = 1;
+    while (it_subscript != subscripts.end()) {
+      SgExpression * dim_size = SageInterface::copyExpression(data->getSections()[cnt].size);
+      subscript = SageBuilder::buildMultiplyOp(subscript, dim_size);
+      subscript = SageBuilder::buildAddOp(subscript, SageInterface::copyExpression(*it_subscript));
+      cnt++; it_subscript++;
     }
+    SageInterface::replaceExpression(top_arr_ref, SageBuilder::buildPntrArrRefExp(SageInterface::copyExpression(var_ref), subscript), true);
   }
 
   var_refs = SageInterface::querySubTree<SgVarRefExp>(result);
