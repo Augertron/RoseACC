@@ -227,6 +227,47 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
 
 namespace Compiler {
 
+SgType * fixSections(
+  SgVariableSymbol * data_sym,
+  std::vector<Frontend::section_t> & sections
+) {
+  SgType * base_type = data_sym->get_type();
+  SgPointerType * ptr_type = isSgPointerType(base_type);
+  SgArrayType   * arr_type = isSgArrayType(base_type);
+
+  size_t init_cnt = sections.size();
+  size_t cnt = 0;
+
+  while (ptr_type != NULL || arr_type != NULL) {
+    assert(ptr_type != NULL xor arr_type != NULL);
+
+    if (ptr_type != NULL) {
+      if (cnt >= init_cnt) {
+        sections.resize(cnt+1);
+        sections[cnt].lower_bound = SageBuilder::buildIntVal(0);
+        sections[cnt].size = NULL;
+        sections[cnt].stride = NULL;
+        /// \todo this is an error if not the last dimension
+      }
+      base_type = ptr_type->get_base_type();
+    }
+    else { // if (arr_type != NULL) {
+      if (cnt >= init_cnt) {
+        sections.resize(cnt+1);
+        sections[cnt].lower_bound = SageBuilder::buildIntVal(0);
+        sections[cnt].size = arr_type->get_index();
+        sections[cnt].stride = NULL;
+      }
+      base_type = arr_type->get_base_type();
+    }
+
+    ptr_type = isSgPointerType(base_type);
+    arr_type = isSgArrayType(base_type);
+    cnt++;
+  }
+  return base_type;
+}
+
 void dataFromDataSections(
   const std::vector<Frontend::data_sections_t> & data_sections,
   std::vector<KLT::Data<KLT_Annotation<OpenACC::language_t> > *> & datas,
@@ -234,12 +275,17 @@ void dataFromDataSections(
 ) {
   std::vector<Frontend::data_sections_t>::const_iterator it_data;
   for (it_data = data_sections.begin(); it_data != data_sections.end(); it_data++) {
-    KLT::Data<KLT_Annotation<OpenACC::language_t> > * data = new KLT::Data<KLT_Annotation<OpenACC::language_t> >(it_data->first, it_data->second.size());
+    SgVariableSymbol * data_sym = it_data->first;
+    std::vector<Frontend::section_t> sections(it_data->second);
+
+    SgType * base_type = fixSections(data_sym, sections);
+
+    KLT::Data<KLT_Annotation<OpenACC::language_t> > * data = new KLT::Data<KLT_Annotation<OpenACC::language_t> >(data_sym, base_type);
     assert(data != NULL);
     datas.push_back(data);
 
     std::vector<Frontend::section_t>::const_iterator it_section;
-    for (it_section = it_data->second.begin(); it_section != it_data->second.end(); it_section++) {
+    for (it_section = sections.begin(); it_section != sections.end(); it_section++) {
       KLT::Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::section_t section;
       section.lower_bound = it_section->lower_bound;
       section.size = it_section->size;
