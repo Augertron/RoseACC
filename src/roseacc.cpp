@@ -46,7 +46,7 @@ int main(int argc, char ** argv) {
     e_static_data,
     e_database
   } descriptor_format = e_static_data;
-  bool compile_switch;
+  bool compile_switch = true;
   for (it_str = roseacc_args.begin(); it_str != roseacc_args.end(); it_str++) {
     if (it_str->find("desc_format") == 0) {
       std::string format = it_str->substr(12);
