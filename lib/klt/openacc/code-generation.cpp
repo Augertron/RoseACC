@@ -126,8 +126,7 @@ SgStatement * generateStatement<
   LoopTrees<DLX::KLT_Annotation<DLX::OpenACC::language_t> >::stmt_t * stmt,
   const Kernel<
     DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC
-  >::local_symbol_maps_t & local_symbol_maps,
-  bool flatten_array_ref
+  >::local_symbol_maps_t & local_symbol_maps
 ) {
   SgStatement * result = SageInterface::copyStatement(stmt->statement);
 
@@ -295,6 +294,172 @@ SgExpression * translateConstExpression(
   }
 
   return result;
+}
+
+template <>
+Runtime::OpenACC::exec_mode_t changeExecutionMode<
+  DLX::KLT_Annotation<DLX::OpenACC::language_t>,
+  Language::OpenCL,
+  Runtime::OpenACC
+> (
+  const Runtime::OpenACC::exec_mode_t & exec_mode,
+  const Runtime::OpenACC::exec_config_t & exec_cfg,
+  LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC>::loop_tiling_t & tiling
+) {
+  Runtime::OpenACC::exec_mode_t new_exec_mode = exec_mode;
+  std::vector<Runtime::OpenACC::tile_desc_t>::iterator it_tile;
+  for (it_tile = tiling.tiles.begin(); it_tile != tiling.tiles.end(); it_tile++) {
+    switch (it_tile->kind) {
+      case Runtime::OpenACC::e_static_tile:
+      case Runtime::OpenACC::e_dynamic_tile:
+        break;
+      case Runtime::OpenACC::e_gang_tile:
+        new_exec_mode |=  (1 << (it_tile->param.level));
+        break;
+      case Runtime::OpenACC::e_worker_tile:
+        new_exec_mode |=  (1 << (it_tile->param.level + 3));
+        break;
+      case Runtime::OpenACC::e_vector_tile:
+        new_exec_mode |=  (1 << 7);
+        break;
+      default:
+        assert(false);
+    }
+  }
+
+  std::cout << "changeExecutionMode(" << exec_mode << ") = " << new_exec_mode << std::endl;
+
+  return new_exec_mode;
+}
+
+template <>
+void generateSynchronizations<
+  DLX::KLT_Annotation<DLX::OpenACC::language_t>,
+  Language::OpenCL,
+  Runtime::OpenACC
+> (
+  Runtime::OpenACC::exec_mode_t prev_exec_mode,
+  Runtime::OpenACC::exec_mode_t next_exec_mode,
+  const Runtime::OpenACC::exec_config_t & exec_cfg,
+  SgScopeStatement * scope,
+  const Kernel<
+    DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC
+  >::local_symbol_maps_t & local_symbol_maps
+) {
+
+  std::cout << "generateSynchronizations(" << prev_exec_mode << ", " << next_exec_mode << ")" << std::endl;
+
+  if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_GANG_0)) {
+    assert(
+               ::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(prev_exec_mode, OPENACC_EXEC_MODE_GANG_0)
+           && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(next_exec_mode, OPENACC_EXEC_MODE_GANG_0)
+    );
+    /// \todo gang[0] sync
+  }
+  if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_GANG_1)) {
+    assert(
+               ::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(prev_exec_mode, OPENACC_EXEC_MODE_GANG_1)
+           && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(next_exec_mode, OPENACC_EXEC_MODE_GANG_1)
+    );
+    /// \todo gang[1] sync
+  }
+  if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_GANG_2)) {
+    assert(
+               ::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(prev_exec_mode, OPENACC_EXEC_MODE_GANG_2)
+           && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(next_exec_mode, OPENACC_EXEC_MODE_GANG_2)
+    );
+    /// \todo gang[2] sync
+  }
+  if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_WORKER_0)) {
+    assert(
+               ::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(prev_exec_mode, OPENACC_EXEC_MODE_WORKER_0)
+           && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(next_exec_mode, OPENACC_EXEC_MODE_WORKER_0)
+    );
+
+    SageInterface::appendStatement(SageBuilder::buildFunctionCallStmt(
+      SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.barrier_workers_symbol),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(local_symbol_maps.context))
+    ), scope); /// acc_barrier_workers('ctx')
+  }
+  if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_WORKER_1)) {
+    assert(
+               ::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(prev_exec_mode, OPENACC_EXEC_MODE_WORKER_1)
+           && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(next_exec_mode, OPENACC_EXEC_MODE_WORKER_1)
+    );
+
+    SageInterface::appendStatement(SageBuilder::buildFunctionCallStmt(
+      SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.barrier_workers_symbol),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(local_symbol_maps.context))
+    ), scope); /// acc_barrier_workers('ctx')
+  }
+  if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_WORKER_2)) {
+    assert(
+               ::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(prev_exec_mode, OPENACC_EXEC_MODE_WORKER_2)
+           && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(next_exec_mode, OPENACC_EXEC_MODE_WORKER_2)
+    );
+
+    SageInterface::appendStatement(SageBuilder::buildFunctionCallStmt(
+      SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.barrier_workers_symbol),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(local_symbol_maps.context))
+    ), scope); /// acc_barrier_workers('ctx')
+  }
+  if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_VECTOR)) {
+    assert(
+               ::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(prev_exec_mode, OPENACC_EXEC_MODE_VECTOR)
+           && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(next_exec_mode, OPENACC_EXEC_MODE_VECTOR)
+    );
+    /// \todo vector sync
+  }
+}
+
+template <>
+SgScopeStatement * generateExecModeGuards<
+  DLX::KLT_Annotation<DLX::OpenACC::language_t>,
+  Language::OpenCL,
+  Runtime::OpenACC
+> (
+  Runtime::OpenACC::exec_mode_t exec_mode,
+  const Runtime::OpenACC::exec_config_t & exec_cfg,
+  SgScopeStatement * scope,
+  const Kernel<
+    DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runtime::OpenACC
+  >::local_symbol_maps_t & local_symbol_maps
+) {
+  SgExpression * condition = NULL;
+
+  if (exec_cfg.num_workers[0] != 1 && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(exec_mode, OPENACC_EXEC_MODE_WORKER_0)) {
+    // !worker[0] : only the workers that are master on level 0 (worker_id[0] == 0)
+    SgExpression * new_cond = SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.is_master_worker_lvl_symbol),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(local_symbol_maps.context), SageBuilder::buildIntVal(0))
+    ); /// acc_is_master_worker_lvl(ctx, 0)
+    condition = (condition == NULL) ? new_cond : SageBuilder::buildAndOp(condition, new_cond);
+  }
+
+  if (exec_cfg.num_workers[1] != 1 && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(exec_mode, OPENACC_EXEC_MODE_WORKER_1)) {
+    // !worker[1] : only the workers that are master on level 1 (worker_id[1] == 0)
+    SgExpression * new_cond = SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.is_master_worker_lvl_symbol),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(local_symbol_maps.context), SageBuilder::buildIntVal(1))
+    ); /// acc_is_master_worker_lvl(ctx, 1)
+    condition = (condition == NULL) ? new_cond : SageBuilder::buildAndOp(condition, new_cond);
+  }
+
+  if (exec_cfg.num_workers[2] != 1 && !::KLT::Runtime::is_exec_mode<Runtime::OpenACC>(exec_mode, OPENACC_EXEC_MODE_WORKER_2)) {
+    // !worker[2] : only the workers that are master on level 2 (worker_id[2] == 0)
+    SgExpression * new_cond = SageBuilder::buildFunctionCallExp(
+      SageBuilder::buildFunctionRefExp(Runtime::OpenACC::runtime_device_function_symbols.is_master_worker_lvl_symbol),
+      SageBuilder::buildExprListExp(SageBuilder::buildVarRefExp(local_symbol_maps.context), SageBuilder::buildIntVal(2))
+    ); /// acc_is_master_worker_lvl(ctx, 2)
+    condition = (condition == NULL) ? new_cond : SageBuilder::buildAndOp(condition, new_cond);
+  }
+
+  if (condition == NULL) return scope;
+  else {
+    SgScopeStatement * bb_scope = SageBuilder::buildBasicBlock();
+    SageInterface::appendStatement(SageBuilder::buildIfStmt(condition, bb_scope, NULL), scope);
+    return bb_scope;
+  }
 }
 
 template <>
