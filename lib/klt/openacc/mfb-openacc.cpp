@@ -133,6 +133,21 @@ SgBasicBlock * createLocalDeclarations<
     }
   }
 
+  // * Lookup private data symbols *
+
+  for (it_data = arguments.privates.begin(); it_data != arguments.privates.end(); it_data++) {
+    ::KLT::Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > * data = *it_data;
+    SgVariableSymbol * data_sym = data->getVariableSymbol();
+    std::string data_name = data_sym->get_name().getString();
+
+    SgVariableSymbol * arg_sym = kernel_defn->lookup_variable_symbol("private_" + data_name);
+    assert(arg_sym != NULL);
+
+    local_symbol_maps.privates.insert(
+      std::pair< ::KLT::Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *, SgVariableSymbol *>(data, arg_sym)
+    );
+  }
+
   // * Create iterator *
 
   for (it_loop_tiling = loop_tiling.begin(); it_loop_tiling != loop_tiling.end(); it_loop_tiling++) {

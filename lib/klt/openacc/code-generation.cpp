@@ -46,12 +46,10 @@ SgFunctionParameterList * createParameterList<
   const std::list<SgVariableSymbol *> & params = kernel->getArguments().parameters;
   const std::list<SgVariableSymbol *> & scalars = kernel->getArguments().scalars;
   const std::list<Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *> & datas = kernel->getArguments().datas;
-  unsigned long data_type_modifer_ = SgTypeModifier::e_ocl_global__;
+  const std::list<Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *> & privates = kernel->getArguments().privates;
 
   std::list<SgVariableSymbol *>::const_iterator it_var_sym;
   std::list<Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *>::const_iterator it_data;
-
-  SgTypeModifier::type_modifier_enum data_type_modifer = (SgTypeModifier::type_modifier_enum)data_type_modifer_;
 
   SgFunctionParameterList * result = SageBuilder::buildFunctionParameterList();
 
@@ -85,25 +83,34 @@ SgFunctionParameterList * createParameterList<
     SgType * base_type = data->getBaseType();
     SgType * field_type = SageBuilder::buildPointerType(base_type);
 
-    switch (data_type_modifer) {
-      case SgTypeModifier::e_default:
-        break;
-      case SgTypeModifier::e_ocl_global__:
-      {
-        SgModifierType * modif_type = SageBuilder::buildModifierType(field_type);
-        modif_type->get_typeModifier().setOpenclGlobal();
-        field_type = modif_type;
-        break;
-      }
-      default:
-        assert(false);
-    }
+    SgModifierType * modif_type = SageBuilder::buildModifierType(field_type);
+      modif_type->get_typeModifier().setOpenclGlobal();
+    field_type = modif_type;
 
     result->append_arg(SageBuilder::buildInitializedName("data_" + data_name, field_type, NULL));
 
     if (data->isDistributed())
       result->append_arg(SageBuilder::buildInitializedName("offset_" + data_name, SageBuilder::buildLongType(), NULL));
   }
+
+  // ******************
+
+  for (it_data = privates.begin(); it_data != privates.end(); it_data++) {
+    Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > * data = *it_data;
+    SgVariableSymbol * data_sym = data->getVariableSymbol();
+    std::string data_name = data_sym->get_name().getString();
+
+    SgType * base_type = data->getBaseType();
+    SgType * field_type = SageBuilder::buildPointerType(base_type);
+
+    SgModifierType * modif_type = SageBuilder::buildModifierType(field_type);
+      modif_type->get_typeModifier().setOpenclLocal();
+    field_type = modif_type;
+
+    result->append_arg(SageBuilder::buildInitializedName("private_" + data_name, field_type, NULL));
+  }
+
+  // ******************
 
   SgModifierType * context_type = SageBuilder::buildModifierType(
     SageBuilder::buildPointerType(
@@ -137,6 +144,15 @@ SgStatement * generateStatement<
   std::map<SgVariableSymbol *, Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *> data_sym_to_data;
 
   for (it_data_to_local = local_symbol_maps.datas.begin(); it_data_to_local != local_symbol_maps.datas.end(); it_data_to_local++) {
+    Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > * data = it_data_to_local->first;
+    SgVariableSymbol * data_sym = it_data_to_local->first->getVariableSymbol();
+    SgVariableSymbol * local_sym = it_data_to_local->second;
+
+    data_sym_to_local.insert(std::pair<SgVariableSymbol *, SgVariableSymbol *>(data_sym, local_sym));
+    data_sym_to_data.insert(std::pair<SgVariableSymbol *, Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > *>(data_sym, data));
+  }
+
+  for (it_data_to_local = local_symbol_maps.privates.begin(); it_data_to_local != local_symbol_maps.privates.end(); it_data_to_local++) {
     Data<DLX::KLT_Annotation<DLX::OpenACC::language_t> > * data = it_data_to_local->first;
     SgVariableSymbol * data_sym = it_data_to_local->first->getVariableSymbol();
     SgVariableSymbol * local_sym = it_data_to_local->second;

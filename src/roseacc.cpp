@@ -29,7 +29,7 @@ int main(int argc, char ** argv) {
   std::string inc_opt("-I");
   args.push_back(inc_opt + OPENACC_INC_PATH);
   std::string opencl_inc_path(OPENCL_INC_PATH);
-  if (opencl_inc_path != "/usr/include")
+  if (opencl_inc_path != "/usr/include" && opencl_inc_path != "/usr/include/")
     args.push_back(inc_opt + opencl_inc_path);
   args.push_back("-DOPENACC");
 //args.push_back("-rose:wave");

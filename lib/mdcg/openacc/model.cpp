@@ -248,11 +248,21 @@ SgExpression * KernelDesc::createFieldInitializer(
       return createIndexList< ::KLT::Data<Annotation> >(static_initializer, args.datas, input->getLoopTree().getDatas(), decl_name.str(), file_id);
     }
     case 8:
+      /// size_t num_privates;
+      return SageBuilder::buildIntVal(args.privates.size());
+    case 9:
+    {
+      /// size_t * private_ids;
+      std::ostringstream decl_name;
+        decl_name << "private_ids_" << input;
+      return createIndexList< ::KLT::Data<Annotation> >(static_initializer, args.privates, input->getLoopTree().getPrivates(), decl_name.str(), file_id);
+    }
+    case 10:
     {
       /// size_t num_loops;
       return SageBuilder::buildIntVal(input->getLoops().size());
     }
-    case 9:
+    case 11:
     {
       /// size_t * loop_ids;
       std::ostringstream decl_name;
@@ -277,10 +287,10 @@ SgExpression * KernelDesc::createFieldInitializer(
 
       return SageBuilder::buildVarRefExp(var_decl_res.symbol);
     }
-    case 10:
+    case 12:
       /// unsigned num_versions;
       return SageBuilder::buildIntVal(versions.size());
-    case 11:
+    case 13:
     {
       /// struct acc_kernel_version_t_ * versions;
       std::ostringstream decl_name;
@@ -299,7 +309,7 @@ SgExpression * KernelDesc::createFieldInitializer(
                decl_name.str()
              );
     }
-    case 12:
+    case 14:
     {
       /// \todo size_t * version_by_devices; 
       return SageBuilder::buildIntVal(0);
@@ -678,12 +688,15 @@ SgExpression * RegionDesc::createFieldInitializer(
       /// size_t num_datas;
       return SageBuilder::buildIntVal(input.loop_tree->getNumDatas());
     case 9:
+      /// size_t num_privates;
+      return SageBuilder::buildIntVal(input.loop_tree->getNumPrivates());
+    case 10:
       /// size_t num_loops;
       return SageBuilder::buildIntVal(input.loop_tree->getNumberLoops());
-    case 10:
+    case 11:
       /// size_t num_kernel_groups;
       return SageBuilder::buildIntVal(input.kernel_lists.size());
-    case 11:
+    case 12:
     {
       std::ostringstream decl_name;
         decl_name << "region_" << input.id << "_groups";
@@ -700,11 +713,11 @@ SgExpression * RegionDesc::createFieldInitializer(
                decl_name.str()
              );
     }
-    case 12:
+    case 13:
       /// size_t num_devices;
       return SageBuilder::buildIntVal(input.num_devices); /// \todo multidev
 /*
-    case 13:
+    case 14:
     {
       /// struct acc_device_id_pair_t { acc_device_t kind; size_t num; } * devices;
       std::ostringstream decl_name;
@@ -729,7 +742,7 @@ SgExpression * RegionDesc::createFieldInitializer(
       return SageBuilder::buildVarRefExp(var_decl_res.symbol); /// \todo multidev
     }
 */
-    case 13:
+    case 14:
     {
       // size_t num_distributed_data;
       size_t dist_data_cnt = 0;
@@ -740,7 +753,7 @@ SgExpression * RegionDesc::createFieldInitializer(
           dist_data_cnt++;
       return SageBuilder::buildIntVal(dist_data_cnt);
     }
-    case 14:
+    case 15:
     {
       // struct acc_data_distribution_t_ * distributed_data;
       const std::vector< ::KLT::Data<Annotation> *> & data = input.loop_tree->getDatas();
@@ -763,7 +776,7 @@ SgExpression * RegionDesc::createFieldInitializer(
                decl_name.str()
              );
     }
-    case 15:
+    case 16:
     {
       /// size_t num_splitted_loops;
       size_t cnt = 0;
@@ -774,7 +787,7 @@ SgExpression * RegionDesc::createFieldInitializer(
           cnt++;
       return SageBuilder::buildIntVal(cnt);
     }
-    case 16:
+    case 17:
     {
       /// \todo struct acc_loop_splitter_t_ * splitted_loops;
       const std::vector<LoopTrees::loop_t *> & loops = input.loop_tree->getLoops();
@@ -1004,8 +1017,9 @@ unsigned readOpenaccModel(MDCG::ModelBuilder & model_builder, const std::string 
   model_builder.add(openacc_model, "region",   libopenacc_inc_dir + "/OpenACC/internal", "h");
   model_builder.add(openacc_model, "kernel",   libopenacc_inc_dir + "/OpenACC/internal", "h");
   model_builder.add(openacc_model, "loop",     libopenacc_inc_dir + "/OpenACC/internal", "h");
+  model_builder.add(openacc_model, "runtime",  libopenacc_inc_dir + "/OpenACC/internal", "h");
 
-  model_builder.add(openacc_model, "api",      libopenacc_inc_dir + "/OpenACC/device", "cl");
+  model_builder.add(openacc_model, "openacc",  libopenacc_inc_dir + "/OpenACC/device", "cl");
 
   model_builder.add(openacc_model, "region",   libopenacc_inc_dir + "/OpenACC/private", "h");
   model_builder.add(openacc_model, "kernel",   libopenacc_inc_dir + "/OpenACC/private", "h");
@@ -1015,6 +1029,7 @@ unsigned readOpenaccModel(MDCG::ModelBuilder & model_builder, const std::string 
   model_builder.add(openacc_model, "runtime",  libopenacc_inc_dir + "/OpenACC/private", "h");
 
   model_builder.add(openacc_model, "memory",   libopenacc_inc_dir + "/OpenACC/public", "h");
+  model_builder.add(openacc_model, "device",   libopenacc_inc_dir + "/OpenACC/public", "h");
 
   model_builder.add(openacc_model, "openacc",  libopenacc_inc_dir + "/OpenACC", "h");
 

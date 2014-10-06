@@ -59,27 +59,27 @@ compiler_modules_t::compiler_modules_t(
     driver.setUnparsedFile(host_data_file_id);
     driver.setCompiledFile(host_data_file_id);
 
-  libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, openacc_inc_path);
-
-  // Get base class for host data generation
-  std::set<MDCG::Model::class_t> classes;
-  model_builder.get(libopenacc_model).lookup<MDCG::Model::class_t>("acc_compiler_data_t_", classes);
-  assert(classes.size() == 1);
-  compiler_data_class = *(classes.begin());
-
   comp_data.openacc_inc_path = SageBuilder::buildStringVal(openacc_inc_path);
   comp_data.openacc_lib_path = SageBuilder::buildStringVal(openacc_lib_path);
   comp_data.kernels_dir = SageBuilder::buildStringVal(kernels_dir);
 
+  libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, openacc_inc_path);
+
+  const MDCG::Model::model_t & model = model_builder.get(libopenacc_model);
+  model.toText(std::cout, "acc_get_device", false, true, false);
+
+  // Get base class for host data generation
+  compiler_data_class = model.lookup<MDCG::Model::class_t>("acc_compiler_data_t_");
+  assert(compiler_data_class);
+
   // Load libOpenACC API for KLT
-  KLT::Runtime::OpenACC::loadAPI(model_builder.get(libopenacc_model));
+  KLT::Runtime::OpenACC::loadAPI(model);
 
   // Load libOpenACC API for transformation
-  loadOpenaccPrivateAPI();
+  loadOpenaccPrivateAPI(model);
 }
 
-void compiler_modules_t::loadOpenaccPrivateAPI() {
-  const MDCG::Model::model_t & model = model_builder.get(libopenacc_model);
+void compiler_modules_t::loadOpenaccPrivateAPI(const MDCG::Model::model_t & model) {
   MDCG::Model::function_t func;
 
   func = model.lookup<MDCG::Model::function_t>("acc_get_device_type");
@@ -163,64 +163,110 @@ void compiler_modules_t::loadOpenaccPrivateAPI() {
   libopenacc_api.present_or_create_region = func->node->symbol;
   assert(libopenacc_api.present_or_create_region != NULL);
 
-  std::set<MDCG::Model::class_t> classes;
-  model_builder.get(libopenacc_model).lookup<MDCG::Model::class_t>("acc_region_t_", classes);
-  assert(classes.size() == 1);
-  libopenacc_api.region_class = *(classes.begin());
+  // ******************************
+  // Get 'acc_region_t'
 
-  assert(libopenacc_api.region_class->scope->field_children.size() == 6);
+  libopenacc_api.region_class = model.lookup<MDCG::Model::class_t>("acc_region_t_");
+
+  // Check number of fields in 'acc_region_t'
+
+  assert(libopenacc_api.region_class->scope->field_children.size() == 7);
+
+  // Collect fields from 'acc_region_t'
 
   libopenacc_api.region_param_ptrs = libopenacc_api.region_class->scope->field_children[1];
   libopenacc_api.region_scalar_ptrs = libopenacc_api.region_class->scope->field_children[2];
   libopenacc_api.region_data = libopenacc_api.region_class->scope->field_children[3];
-  libopenacc_api.region_loops = libopenacc_api.region_class->scope->field_children[4];
-  libopenacc_api.region_devices = libopenacc_api.region_class->scope->field_children[5];
+  libopenacc_api.region_privates = libopenacc_api.region_class->scope->field_children[4];
+  libopenacc_api.region_loops = libopenacc_api.region_class->scope->field_children[5];
+  libopenacc_api.region_devices = libopenacc_api.region_class->scope->field_children[6];
 
-  libopenacc_api.region_data = libopenacc_api.region_class->scope->field_children[3];
+  // ******************************
+  // Get 'acc_region_t::acc_data_t'
+
   assert(libopenacc_api.region_data->node->type != NULL);
   assert(libopenacc_api.region_data->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
   assert(libopenacc_api.region_data->node->type->node->base_type != NULL);
   assert(libopenacc_api.region_data->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-  MDCG::Model::class_t data = libopenacc_api.region_data->node->type->node->base_type->node->base_class;
-  assert(data != NULL);
-  assert(data->node->symbol->get_name().getString() == "acc_data_t_");
+  libopenacc_api.region_data_class = libopenacc_api.region_data->node->type->node->base_type->node->base_class;
+  assert(libopenacc_api.region_data_class != NULL);
+  assert(libopenacc_api.region_data_class->node->symbol->get_name().getString() == "acc_data_t_");
 
-  assert(data->scope->field_children.size() == 5);
+  // Check number of fields in 'acc_region_t::acc_data_t'
 
-  libopenacc_api.region_data_ptr                             = data->scope->field_children[0];
-  libopenacc_api.region_data_nbr_elements                    = data->scope->field_children[1];
-  libopenacc_api.region_data_element_size                    = data->scope->field_children[2];
-  libopenacc_api.region_data_dominant_dimension              = data->scope->field_children[3];
-  libopenacc_api.region_data_nbr_elements_dominant_dimension = data->scope->field_children[4];
+  assert(libopenacc_api.region_data_class->scope->field_children.size() == 5);
+
+  // Collect fields from 'acc_region_t::acc_data_t'
+
+  libopenacc_api.region_data_ptr                             = libopenacc_api.region_data_class->scope->field_children[0];
+  libopenacc_api.region_data_nbr_elements                    = libopenacc_api.region_data_class->scope->field_children[1];
+  libopenacc_api.region_data_element_size                    = libopenacc_api.region_data_class->scope->field_children[2];
+  libopenacc_api.region_data_dominant_dimension              = libopenacc_api.region_data_class->scope->field_children[3];
+  libopenacc_api.region_data_nbr_elements_dominant_dimension = libopenacc_api.region_data_class->scope->field_children[4];
+
+  // ******************************
+  // Get 'acc_region_t::acc_private_t'
+
+  assert(libopenacc_api.region_privates->node->type != NULL);
+  assert(libopenacc_api.region_privates->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
+  assert(libopenacc_api.region_privates->node->type->node->base_type != NULL);
+  assert(libopenacc_api.region_privates->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
+  libopenacc_api.region_privates_class = libopenacc_api.region_privates->node->type->node->base_type->node->base_class;
+  assert(libopenacc_api.region_privates_class != NULL);
+  assert(libopenacc_api.region_privates_class->node->symbol->get_name().getString() == "acc_private_t_");
+
+  // Check number of fields in 'acc_region_t::acc_private_t'
+
+  assert(libopenacc_api.region_privates_class->scope->field_children.size() == 3);
+
+  // Collect fields from 'acc_region_t::acc_private_t'
+
+  libopenacc_api.region_privates_ptr                             = libopenacc_api.region_privates_class->scope->field_children[0];
+  libopenacc_api.region_privates_nbr_elements                    = libopenacc_api.region_privates_class->scope->field_children[1];
+  libopenacc_api.region_privates_element_size                    = libopenacc_api.region_privates_class->scope->field_children[2];
+
+  // ******************************
+  // Get 'acc_loop_t'
 
   assert(libopenacc_api.region_loops->node->type != NULL);
   assert(libopenacc_api.region_loops->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
   assert(libopenacc_api.region_loops->node->type->node->base_type != NULL);
   assert(libopenacc_api.region_loops->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-  MDCG::Model::class_t loops = libopenacc_api.region_loops->node->type->node->base_type->node->base_class;
-  assert(loops != NULL);
-  assert(loops->node->symbol->get_name().getString() == "acc_loop_t_");
+  libopenacc_api.region_loops_class = libopenacc_api.region_loops->node->type->node->base_type->node->base_class;
+  assert(libopenacc_api.region_loops_class != NULL);
+  assert(libopenacc_api.region_loops_class->node->symbol->get_name().getString() == "acc_loop_t_");
 
-  assert(loops->scope->field_children.size() == 3);
+  // Check number of fields in 'acc_loop_t'
 
-  libopenacc_api.region_loops_lower  = loops->scope->field_children[0];
-  libopenacc_api.region_loops_upper  = loops->scope->field_children[1];
-  libopenacc_api.region_loops_stride = loops->scope->field_children[2];
+  assert(libopenacc_api.region_loops_class->scope->field_children.size() == 3);
+
+  // Collect fields from 'acc_loop_t'
+
+  libopenacc_api.region_loops_lower  = libopenacc_api.region_loops_class->scope->field_children[0];
+  libopenacc_api.region_loops_upper  = libopenacc_api.region_loops_class->scope->field_children[1];
+  libopenacc_api.region_loops_stride = libopenacc_api.region_loops_class->scope->field_children[2];
+
+  // ******************************
+  // Get 'acc_region_t::acc_region_per_device_t_'
 
   assert(libopenacc_api.region_devices->node->type != NULL);
   assert(libopenacc_api.region_devices->node->type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_pointer_type);
   assert(libopenacc_api.region_devices->node->type->node->base_type != NULL);
   assert(libopenacc_api.region_devices->node->type->node->base_type->node->kind == MDCG::Model::node_t<MDCG::Model::e_model_type>::e_class_type);
-  MDCG::Model::class_t region_per_device = libopenacc_api.region_devices->node->type->node->base_type->node->base_class;
-  assert(region_per_device != NULL);
-  assert(region_per_device->node->symbol->get_name().getString() == "acc_region_per_device_t_");
+  libopenacc_api.region_devices_class = libopenacc_api.region_devices->node->type->node->base_type->node->base_class;
+  assert(libopenacc_api.region_devices_class != NULL);
+  assert(libopenacc_api.region_devices_class->node->symbol->get_name().getString() == "acc_region_per_device_t_");
 
-  assert(region_per_device->scope->field_children.size() == 4);
+  // Check number of fields in 'acc_region_t::acc_region_per_device_t_'
 
-  libopenacc_api.region_devices_device_idx = region_per_device->scope->field_children[0];
-  libopenacc_api.region_devices_num_gangs = region_per_device->scope->field_children[1];
-  libopenacc_api.region_devices_num_workers = region_per_device->scope->field_children[2];
-  libopenacc_api.region_devices_vector_length = region_per_device->scope->field_children[3];
+  assert(libopenacc_api.region_devices_class->scope->field_children.size() == 4);
+
+  // Collect fields from 'acc_region_t::acc_region_per_device_t_'
+
+  libopenacc_api.region_devices_device_idx = libopenacc_api.region_devices_class->scope->field_children[0];
+  libopenacc_api.region_devices_num_gangs = libopenacc_api.region_devices_class->scope->field_children[1];
+  libopenacc_api.region_devices_num_workers = libopenacc_api.region_devices_class->scope->field_children[2];
+  libopenacc_api.region_devices_vector_length = libopenacc_api.region_devices_class->scope->field_children[3];
 }
 
 }
@@ -328,8 +374,8 @@ void translateDataSections(
     KLT::Data<KLT_Annotation<OpenACC::language_t> > * data = *it_data;
     assert(data != NULL);
     if (clause->kind == OpenACC::language_t::e_acc_clause_private || clause->kind == OpenACC::language_t::e_acc_clause_firstprivate) {
-      assert(data->getSections().empty()); // added this here so that it fail for private array...
-      loop_tree->addScalar(data->getVariableSymbol());
+      loop_tree->addPrivate(data);
+      data->annotations.push_back(KLT_Annotation<OpenACC::language_t>(clause));
     }
     else {
       loop_tree->addData(data);
@@ -925,6 +971,11 @@ SgBasicBlock * buildRegionBlock(
 
   // Import symbols in to be used in this file
 
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.get_device_type, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.get_device_num, scope);
+
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.get_device_idx, scope);
+
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.push_data_environment, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.pop_data_environment, scope);
 
@@ -938,6 +989,8 @@ SgBasicBlock * buildRegionBlock(
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.copyout_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.create, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.create_region, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present, scope);
+  driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyin, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyin_region, scope);
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_copyout, scope);
@@ -946,6 +999,11 @@ SgBasicBlock * buildRegionBlock(
   driver.useSymbol<SgFunctionDeclaration>(libopenacc_api.present_or_create_region, scope);
 
   driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_class->node->symbol, scope);
+
+  driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_data_class->node->symbol, scope);
+  driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_privates_class->node->symbol, scope);
+  driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_loops_class->node->symbol, scope);
+  driver.useSymbol<SgClassDeclaration>(libopenacc_api.region_devices_class->node->symbol, scope);
 
   // build decl : acc_region_t region = acc_region_build(0);
 

@@ -61,9 +61,12 @@ struct compiler_modules_t {
     MDCG::Model::field_t region_param_ptrs;
     MDCG::Model::field_t region_scalar_ptrs;
     MDCG::Model::field_t region_data;
+    MDCG::Model::field_t region_privates;
     MDCG::Model::field_t region_loops;
     MDCG::Model::field_t region_distributed_data;
     MDCG::Model::field_t region_devices;
+
+    MDCG::Model::class_t region_data_class;
 
     MDCG::Model::field_t region_data_ptr;
     MDCG::Model::field_t region_data_nbr_elements;
@@ -71,9 +74,19 @@ struct compiler_modules_t {
     MDCG::Model::field_t region_data_dominant_dimension;
     MDCG::Model::field_t region_data_nbr_elements_dominant_dimension;
 
+    MDCG::Model::class_t region_privates_class;
+
+    MDCG::Model::field_t region_privates_ptr;
+    MDCG::Model::field_t region_privates_nbr_elements;
+    MDCG::Model::field_t region_privates_element_size;
+
+    MDCG::Model::class_t region_loops_class;
+
     MDCG::Model::field_t region_loops_lower;
     MDCG::Model::field_t region_loops_upper;
     MDCG::Model::field_t region_loops_stride;
+
+    MDCG::Model::class_t region_devices_class;
 
     MDCG::Model::field_t region_devices_device_idx;
     MDCG::Model::field_t region_devices_num_gangs;
@@ -82,7 +95,7 @@ struct compiler_modules_t {
     
   } libopenacc_api;
 
-  void loadOpenaccPrivateAPI();
+  void loadOpenaccPrivateAPI(const MDCG::Model::model_t & model);
 
   compiler_modules_t(
     SgProject * project,
