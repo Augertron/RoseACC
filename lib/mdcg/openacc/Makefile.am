@@ -7,6 +7,7 @@ libMDCG_openacc_la_CXXFLAGS= \
   -O0 -g \
   -I$(srcdir)/../../../include \
   -I@rose_path@/include \
+  -I@rose_path@/include/rose \
   -I@boost_path@/include \
   -I@sqlite_inc_path@
 

@@ -1,18 +1,19 @@
 
 bin_PROGRAMS=roseacc
 
-AM_CXXFLAGS=-g -O0
 
 roseacc_SOURCES= \
   roseacc.cpp
 roseacc_CXXFLAGS= \
+  -g -O0 \
   -DOPENACC_INC_PATH=\"@openacc_inc_path@\" \
   -DOPENACC_LIB_PATH=\"@openacc_lib_path@\" \
   -DOPENCL_INC_PATH=\"@opencl_inc_path@\" \
   -I$(srcdir)/../include \
   -I@sqlite_inc_path@ \
   -I@boost_path@/include \
-  -I@rose_path@/include
+  -I@rose_path@/include \
+  -I@rose_path@/include/rose
 roseacc_LDFLAGS= \
   -L@sqlite_lib_path@ \
   -L@boost_lib_path@ \

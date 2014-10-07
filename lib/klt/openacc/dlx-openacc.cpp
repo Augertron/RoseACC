@@ -4,7 +4,7 @@
 #include "KLT/OpenACC/language-opencl.hpp"
 #include "KLT/OpenACC/runtime-openacc.hpp"
 
-#include "sage3basic.h"
+#include "rose/sage3basic.h"
 
 //! This helper function return non-null value iff the expression found is statically defined integer.
 SgExpression * parseExpressionOrLabel() {

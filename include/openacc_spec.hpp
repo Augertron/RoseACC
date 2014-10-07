@@ -24,7 +24,7 @@
 
 #include <cassert>
 
-#include "sage3basic.h"
+#include "rose/sage3basic.h"
 
 typedef ::KLT::Language::OpenCL Language;
 typedef ::KLT::Runtime::OpenACC Runtime;

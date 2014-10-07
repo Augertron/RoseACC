@@ -14,6 +14,7 @@ libKLT_openacc_la_CXXFLAGS= \
   -I$(srcdir)/../../../include \
   -I@sqlite_inc_path@ \
   -I@rose_path@/include \
+  -I@rose_path@/include/rose \
   -I@boost_path@/include
 
 

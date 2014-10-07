@@ -6,7 +6,7 @@
  *
  */
 
-#include "sage3basic.h"
+#include "rose/sage3basic.h"
 
 #include "MFB/Sage/driver.hpp"
 #include "MFB/Sage/class-declaration.hpp"

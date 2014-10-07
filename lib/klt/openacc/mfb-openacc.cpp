@@ -15,7 +15,7 @@
 
 #include "MFB/Sage/function-declaration.hpp"
 
-#include "sage3basic.h"
+#include "rose/sage3basic.h"
 
 namespace MFB {
 
