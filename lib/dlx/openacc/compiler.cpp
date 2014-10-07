@@ -694,17 +694,20 @@ void extractLoopTrees(
         }
         else loop_tree->addTree(buildLoopTree(region_base, loop_tree, iterators, locals, others, loop_map));
 
-        const std::vector<SgVariableSymbol *> & params = loop_tree->getParameters();
-        const std::vector<KLT::Data<Annotation> *> & datas_ = loop_tree->getDatas();
+        std::vector<SgVariableSymbol *> symbols = loop_tree->getParameters();
 
-        std::vector<SgVariableSymbol *> datas;
+        const std::vector<KLT::Data<Annotation> *> & datas_ = loop_tree->getDatas();
+        const std::vector<KLT::Data<Annotation> *> & privates_ = loop_tree->getPrivates();
         std::vector<KLT::Data<Annotation> *>::const_iterator it_data;
+
         for (it_data = datas_.begin(); it_data != datas_.end(); it_data++)
-          datas.push_back((*it_data)->getVariableSymbol());
+          symbols.push_back((*it_data)->getVariableSymbol());
+        for (it_data = privates_.begin(); it_data != privates_.end(); it_data++)
+          symbols.push_back((*it_data)->getVariableSymbol());
 
         std::vector<SgVariableSymbol *>::const_iterator it_other;
         for (it_other = others.begin(); it_other != others.end(); it_other++)
-          if (std::find(params.begin(), params.end(), *it_other) == params.end() && std::find(datas.begin(), datas.end(), *it_other) == datas.end())
+          if (std::find(symbols.begin(), symbols.end(), *it_other) == symbols.end())
             loop_tree->addScalar(*it_other); // Neither iterators or parameters or data
 
         break;
@@ -1115,6 +1118,49 @@ SgBasicBlock * buildRegionBlock(
         SageBuilder::buildDotExp(data_ref_exp, SageBuilder::buildVarRefExp(libopenacc_api.region_data_nbr_elements_dominant_dimension->node->symbol)), SageBuilder::buildIntVal(0)
       )), result);
     }
+  }
+
+  size_t private_cnt = 0;
+  const std::vector< ::KLT::Data<KLT_Annotation<OpenACC::language_t> > *> & privates = loop_trees->getPrivates();
+  for (it_data = privates.begin(); it_data != privates.end(); it_data++) {
+    // private_ref_exp : region->private['private_cnt']
+    SgExpression * private_ref_exp = SageBuilder::buildPntrArrRefExp(
+      SageBuilder::buildArrowExp(SageBuilder::buildVarRefExp(region_sym), SageBuilder::buildVarRefExp(libopenacc_api.region_privates->node->symbol)),
+      SageBuilder::buildIntVal(private_cnt++)
+    );
+
+    // array_ref_exp : ref on base data (go down the dimension for multidimensionnal arrays)
+    SgExpression * array_ref_exp = SageBuilder::buildVarRefExp((*it_data)->getVariableSymbol());
+    for (size_t section_cnt = 0; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+      array_ref_exp = SageBuilder::buildPntrArrRefExp(array_ref_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].lower_bound));
+    array_ref_exp = SageBuilder::buildAddressOfOp(array_ref_exp); /// \todo not VALID with sections not starting at zero ?????
+
+    // region->data['private_cnt'].ptr= 'array_ref_exp'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(SageInterface::copyExpression(private_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_privates_ptr->node->symbol)), array_ref_exp
+    )), result);
+
+    // nbr_elements_exp : Number of data elements
+    SgExpression * nbr_elements_exp = NULL;
+    if ((*it_data)->getSections().size() > 0) {
+      nbr_elements_exp = SageInterface::copyExpression((*it_data)->getSections()[0].size);
+      for (size_t section_cnt = 1; section_cnt < (*it_data)->getSections().size(); section_cnt++)
+        nbr_elements_exp = SageBuilder::buildMultiplyOp(nbr_elements_exp, SageInterface::copyExpression((*it_data)->getSections()[section_cnt].size));
+    }
+    else nbr_elements_exp = SageBuilder::buildIntVal(1);
+
+    // region->data['private_cnt'].nbr_elements = 'nbr_elements_exp'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(SageInterface::copyExpression(private_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_privates_nbr_elements->node->symbol)), nbr_elements_exp
+    )), result);
+
+    // element_size_exp : Size of one data element
+    SgExpression * element_size_exp = SageBuilder::buildSizeOfOp((*it_data)->getBaseType());
+
+    // region->data['private_cnt'].element_size = 'element_size_exp'
+    SageInterface::appendStatement(SageBuilder::buildExprStatement(SageBuilder::buildAssignOp(
+      SageBuilder::buildDotExp(SageInterface::copyExpression(private_ref_exp), SageBuilder::buildVarRefExp(libopenacc_api.region_privates_element_size->node->symbol)), element_size_exp
+    )), result);
   }
 
   const std::vector<LoopTrees::node_t *> & trees = loop_trees->getTrees();
