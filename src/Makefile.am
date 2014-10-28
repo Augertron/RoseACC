@@ -23,7 +23,7 @@ roseacc_LDADD= \
   $(builddir)/../lib/klt/openacc/libKLT-openacc.la \
   $(builddir)/../lib/mdcg/openacc/libMDCG-openacc.la \
   -lrose -lDLX-core -lMFB-sage -lMDCG -lKLT -lKLT-core \
-  -lboost_filesystem -lboost_system -lboost_date_time -lboost_wave -lboost_thread -lboost_program_options -lboost_regex \
+  -lboost_filesystem -lboost_system -lboost_date_time -lboost_wave -lboost_thread -lboost_program_options -lboost_regex -lboost_iostreams \
   -lsqlite3
 
 clean-local:

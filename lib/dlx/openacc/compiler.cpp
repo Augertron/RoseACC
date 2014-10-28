@@ -66,7 +66,7 @@ compiler_modules_t::compiler_modules_t(
   libopenacc_model = MDCG::OpenACC::readOpenaccModel(model_builder, openacc_inc_path);
 
   const MDCG::Model::model_t & model = model_builder.get(libopenacc_model);
-  model.toText(std::cout, "acc_get_device", false, true, false);
+  //model.toText(std::cout, "acc_get_device", false, true, false);
 
   // Get base class for host data generation
   compiler_data_class = model.lookup<MDCG::Model::class_t>("acc_compiler_data_t_");

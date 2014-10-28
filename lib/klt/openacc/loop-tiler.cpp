@@ -16,7 +16,9 @@ LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runti
       it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_tile   ||
       it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_gang   ||
       it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_worker ||
-      it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_vector
+      it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_vector ||
+      it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_seq    ||
+      (it_annotation->clause->kind == DLX::OpenACC::language_t::e_acc_clause_split && loop->annotations.size() == 1)
     ) {
       Runtime::OpenACC::tile_desc_t & tile_desc = *(tiles.insert(tiles.end(), Runtime::OpenACC::tile_desc_t()));
       switch (it_annotation->clause->kind) {
@@ -53,6 +55,20 @@ LoopTiler<DLX::KLT_Annotation<DLX::OpenACC::language_t>, Language::OpenCL, Runti
            tile_desc.kind = Runtime::OpenACC::e_vector_tile;
            tile_desc.param.level = 0;
            break;
+        }
+        case DLX::OpenACC::language_t::e_acc_clause_seq:
+        {
+          // Insert a dynamic tile for loop marked as sequential (more for homogeneity than anything else)
+          tile_desc.kind = Runtime::OpenACC::e_dynamic_tile;
+          tile_desc.param.nbr_it = 0;
+          break;
+        }
+        case DLX::OpenACC::language_t::e_acc_clause_split:
+        {
+          // If a split clause is present and no gang nor worker (test for that has to be improved) then we need the loop to appear in the context so we create a dynamic tile
+          tile_desc.kind = Runtime::OpenACC::e_dynamic_tile;
+          tile_desc.param.nbr_it = 0;
+          break;
         }
       }
     }

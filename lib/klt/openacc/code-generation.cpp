@@ -90,7 +90,7 @@ SgFunctionParameterList * createParameterList<
     result->append_arg(SageBuilder::buildInitializedName("data_" + data_name, field_type, NULL));
 
     if (data->isDistributed())
-      result->append_arg(SageBuilder::buildInitializedName("offset_" + data_name, SageBuilder::buildLongType(), NULL));
+      result->append_arg(SageBuilder::buildInitializedName("offset_" + data_name, SageBuilder::buildIntType(), NULL));
   }
 
   // ******************
@@ -343,7 +343,7 @@ Runtime::OpenACC::exec_mode_t changeExecutionMode<
     }
   }
 
-  std::cout << "changeExecutionMode(" << exec_mode << ") = " << new_exec_mode << std::endl;
+//std::cout << "changeExecutionMode(" << exec_mode << ") = " << new_exec_mode << std::endl;
 
   return new_exec_mode;
 }
@@ -363,7 +363,7 @@ void generateSynchronizations<
   >::local_symbol_maps_t & local_symbol_maps
 ) {
 
-  std::cout << "generateSynchronizations(" << prev_exec_mode << ", " << next_exec_mode << ")" << std::endl;
+//std::cout << "generateSynchronizations(" << prev_exec_mode << ", " << next_exec_mode << ")" << std::endl;
 
   if (!::KLT::Runtime::are_both_exec_mode<Runtime::OpenACC>(prev_exec_mode, next_exec_mode, OPENACC_EXEC_MODE_GANG_0)) {
     assert(
